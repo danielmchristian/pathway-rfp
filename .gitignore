@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.next/
+.env
+.env.local
+*.db
+.DS_Store
+backend/alembic/versions/__pycache__/

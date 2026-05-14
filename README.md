@@ -62,7 +62,7 @@ Two ways to bring it up. The host-run flow is what we use day-to-day; `docker co
 ### Prerequisites
 
 - Docker (Postgres runs in a container regardless of which flow you pick)
-- Python 3.12 + [`uv`](https://docs.astral.sh/uv/) for the backend
+- Python 3.11+ + [`uv`](https://docs.astral.sh/uv/) for the backend
 - Node 20+ for the frontend
 - API keys (see [Environment variables](#environment-variables))
 

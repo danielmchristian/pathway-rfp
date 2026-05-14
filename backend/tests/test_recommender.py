@@ -395,3 +395,149 @@ async def test_force_with_no_quotes_returns_no_pick_no_crash(db_session) -> None
     assert rec.ready is True
     assert rec.pick is None  # no quotes → no pick
     assert rec.ranked == []
+
+
+# ---------------------------------------------------------------------------
+# Scoring regression: complete competitive quote MUST outrank
+# incomplete partial quote with equivalent per-item pricing.
+#
+# Pre-fix bug: cost was scored on basket TOTAL, so a partial-basket
+# distributor had a smaller sum and looked artificially cheaper. The
+# fix is per-item rank averaging + coverage as a 5th weighted component.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_complete_competitive_outranks_partial_equivalent(db_session) -> None:
+    """A distributor that quotes ALL items at price $X beats a distributor
+    that quotes ONE item at the same $X. The per-item cost score ties, but
+    coverage breaks the tie — and the broken pre-fix code would have ranked
+    the partial as cheaper because the basket-sum total was smaller."""
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
+    # A: complete on both, $4/lb kale, $2/lb tomato, delivery 2, MOQ low.
+    # B: partial — only kale at the same $4/lb. Identical per-item pricing
+    #    on the items they share; B simply quoted less.
+    db_session.add_all(
+        [
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=da_id,
+                ingredient_id=kale_id,
+                unit_price=Decimal("4"),
+                unit="lb",
+                min_order_qty=Decimal("20"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=da_id,
+                ingredient_id=tom_id,
+                unit_price=Decimal("2"),
+                unit="lb",
+                min_order_qty=Decimal("30"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=db_id,
+                ingredient_id=kale_id,
+                unit_price=Decimal("4"),  # identical per-item price to A
+                unit="lb",
+                min_order_qty=Decimal("20"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    rec = await compute_for_rfp(rfp_id, force=True)
+    a = next(r for r in rec.ranked if r.distributor_id == da_id)
+    b = next(r for r in rec.ranked if r.distributor_id == db_id)
+
+    # Per-item kale cost is tied (both at $4) — both get 1.0 on kale.
+    # Tomato is only quoted by A and isn't compared. So cost scores tie at 1.0.
+    a_cost = next(c for c in a.components if c.name == "cost")
+    b_cost = next(c for c in b.components if c.name == "cost")
+    assert a_cost.normalized == b_cost.normalized == 1.0
+
+    # Coverage breaks the tie — A covers 2/2, B covers 1/2.
+    a_cov = next(c for c in a.components if c.name == "coverage")
+    b_cov = next(c for c in b.components if c.name == "coverage")
+    assert a_cov.normalized == 1.0
+    assert b_cov.normalized == 0.5
+
+    # Complete distributor MUST win.
+    assert a.score > b.score
+    assert rec.pick.distributor_id == da_id
+
+    # And the partial distributor's coverage is honestly surfaced.
+    assert b.incomplete_comparison is True
+    assert "1/2" in b.rationale or "50%" in b.rationale
+
+
+@pytest.mark.asyncio
+async def test_partial_with_strictly_better_per_item_pricing_can_still_win(db_session) -> None:
+    """The fix isn't a hard gate against partial baskets — a distributor
+    with genuinely better per-item pricing should still be able to win
+    despite lower coverage. This documents the trade-off explicitly so a
+    later weight tweak doesn't silently turn coverage into a hard floor."""
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
+    # A: complete, but expensive — $10/lb kale, $5/lb tomato.
+    # B: partial, dramatically cheaper — $1/lb kale only.
+    db_session.add_all(
+        [
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=da_id,
+                ingredient_id=kale_id,
+                unit_price=Decimal("10"),
+                unit="lb",
+                min_order_qty=Decimal("20"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=da_id,
+                ingredient_id=tom_id,
+                unit_price=Decimal("5"),
+                unit="lb",
+                min_order_qty=Decimal("30"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+            Quote(
+                rfp_request_id=rfp_id,
+                distributor_id=db_id,
+                ingredient_id=kale_id,
+                unit_price=Decimal("1"),  # 10x cheaper than A's kale
+                unit="lb",
+                min_order_qty=Decimal("20"),
+                delivery_days=2,
+                terms="net 30",
+                parse_confidence=0.95,
+                missing_fields=[],
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    rec = await compute_for_rfp(rfp_id, force=True)
+    a = next(r for r in rec.ranked if r.distributor_id == da_id)
+    b = next(r for r in rec.ranked if r.distributor_id == db_id)
+    # B is dramatically cheaper on the one item they share → B wins on cost.
+    # 0.35*(1.0 - 0.0) + 0.20*(50% - 100% coverage delta) is enough.
+    assert b.score > a.score

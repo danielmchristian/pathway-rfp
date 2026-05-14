@@ -480,6 +480,16 @@ Excluded (below `min_matches=2`): Tidewater Seafood (1 match), Charlotte Special
 
 Sample wholesale-unit conversions from the live `rfp_request_id=2` bodies: `Basil — ~12 bunches/week (~600 tbsp/week ≈ 12 bunches at planning density; please confirm your standard bunch size)`, `Shredded kale — ~56.2 lb/week (converted from cups at ~1 oz/cup chopped)`, `Kombucha — ~28.1 gallon/week (converted from fl oz; 128 fl oz/gallon)`. Lemon/lime juice are reported as `tsp/week` with the explicit "no wholesale rule applies — please quote in your standard unit" flag (the sanity fallback firing as designed; we don't have a teaspoon-volume rule because the planning density depends on whether it's freshly squeezed, bottled, or concentrate).
 
+### Phase 5.2 — Composite guard v2 + sauces-category auto-route removal (2026-05-14)
+
+Two gaps surfaced once `make demo` ran end-to-end against the full Sweetgreen menu that Phase 5.1's first-pass guard missed.
+
+**Issue 1 — Composite token list incomplete.** Phase 5.1 caught `dressing / vinaigrette / aioli / sauce / glaze / pesto / salsa / hummus / tahini / paste / mayo / compound butter`. But this menu has in-house preparations whose names use completely different patterns: *charred jalapeño ranch*, *green goddess ranch*, *sesame crunch*, *feta crumble*, *napa cabbage slaw*, *parmesan crisps*, *apple kimchi sauce*, *honey date caramel*, *nori sesame seasoning*. Added tokens: `ranch`, `slaw`, `crunch`, `crumble`, `crisps`, `dip`, `chutney`, `relish`, `jam`, `marmalade`, `kimchi`, `seasoning`, `rub`, `caramel`, `frosting`, `icing`.
+
+**Issue 2 — FDC category auto-route bypassed the name guard.** The FDC category `'Soups, Sauces, and Gravies'` had been mapped to `[dry_goods, specialty_ethnic]`, sending every sauce to 4 of 5 distributors via the *category* path even when the *name* guard didn't fire. The fix maps it to `[]`. Prepared composites belong in `unassigned_ingredients`, not on a dry-goods wholesaler's quote request — the category map should only route raw ingredients.
+
+**Verified `make demo-reset && make demo`:** five distributors received different, coherent baskets (Piedmont 24, Southern Harvest 21, Carolina Fresh 15, Foothills 14, Three Rivers 13). Zero composites in any of the 5 email bodies (regex scan over the full failure list returned no hits). 17/17 composites from the failure list are positively present in `unassigned_ingredients` — honest-gap behavior, not silent drop. No schema change.
+
 ## Phase 6 — Inbox Monitor + Quote Parser + Follow-up Agent + Recommender
 
 End-to-end loop closure: poll Gmail via IMAP → attribute inbound replies → parse with Claude → trigger at-most-one follow-up per distributor → compute a null-safe recommendation with explicit basket-coverage honesty.
@@ -534,23 +544,43 @@ Triggered by the pipeline when a parsed reply has any non-empty `missing_fields`
 **Scoring weights:**
 
 ```
-score = 0.50 × cost_score
+score = 0.35 × cost_score          (per-item rank — apples-to-apples)
       + 0.20 × delivery_score
-      + 0.15 × moq_fit_score
+      + 0.10 × moq_fit_score
       + 0.15 × completeness_score
+      + 0.20 × coverage_score      (quoted / requested basket fraction)
 ```
 
 Each component normalized to `[0, 1]` (higher = better) before weighting. Persisted to `recommendations` table with `score`, `rationale`, `incomplete_comparison`, `coverage_pct`, `component_breakdown` (JSONB).
 
+**Per-item cost ranking (fix to a real bug we caught on the first live finalize).**
+
+Cost is scored *per ingredient*, not by basket total. For each ingredient with ≥2 priced quotes across the cohort, distributors are ranked by `unit_price` (cheapest = 1.0, most expensive = 0.0, linear interpolation in between). A distributor's `cost_score` is the **mean of its per-item ranks** across the ingredients where direct comparison was possible. Distributors with no comparable items get 0.5 (neutral — uncomparable, not punished and not rewarded).
+
+The pre-fix code summed `unit_price × wholesale_quantity` to a basket *total* per distributor and ranked totals. That silently rewarded incompleteness: a distributor who quoted fewer items had a smaller basket sum, so the scorer made them look "cheaper" — even if their per-item pricing was identical or worse. The first live finalize ranked Southern Harvest (a deliberate 5-item partial reply, *"I'll get back to you on the rest"*) above Carolina Fresh (a complete 9-item competitive reply). Switching to per-item ranking + adding coverage as a 20%-weight component inverted that result and matched the human intuition.
+
+The informational basket *total* is still computed and shown in the rationale (it's what the buyer pays for that distributor's actual quoted subset), but it is **not** an input to scoring.
+
 **Asymmetric null-safety (intentional — defended in the rationale text).**
 
-- **`unit_price=NULL` OR `wholesale_quantity=NULL`** → that ingredient is **EXCLUDED** from the basket sum, AND the basket is flagged `incomplete_comparison=true`. *Reason:* we can't compute basket cost without both; silently scoring as zero would make the distributor look artificially cheap. Treating NULL as "absent data" is honest.
+- **`unit_price=NULL` OR `wholesale_quantity=NULL`** → that ingredient is **EXCLUDED** from the per-item cost comparison, excluded from the informational basket sum, and the basket is flagged `incomplete_comparison=true`. *Reason:* we can't compare without a price; silently scoring as zero would make the distributor look artificially cheap.
 - **`delivery_days=NULL`** → scored **0.0** (WORST-CASE), NOT excluded, NOT median-imputed. *Reason:* a distributor refusing to commit to delivery is a real negative signal, not absent data. Distinct from price NULL on purpose: price NULL means "working on it"; delivery NULL means "won't commit". The rationale text repeats this verbatim so the writeup can defend the choice.
 - **`min_order_qty=NULL`** → scored **0.5** (neutral). *Reason:* genuinely ambiguous — many distributors don't enforce one.
 
-**Cross-distributor basket coverage.** `coverage_pct = (quoted_ingredient_count / requested_ingredient_count) × 100` is surfaced because distributors quote different subsets — the recommendation isn't always apples-to-apples. The rationale text explicitly calls this out: *"Carolina Fresh scored 0.96 on a basket of 8/21 requested items (coverage 38%); this score is not strictly apples-to-apples vs other distributors."*
+**Coverage as a first-class component.** `coverage_pct = (quoted_ingredient_count / requested_ingredient_count) × 100` is both surfaced in the rationale AND weighted at 20% in the score. The rationale text still calls out the apples-to-not-apples flavor explicitly: *"Carolina Fresh scored 0.80 on a basket of 9/35 requested items (coverage 26%); cost is compared per-item against distributors who quoted the same ingredients, not by basket total."* This isn't a hard gate — a distributor with dramatically better per-item pricing can still win despite low coverage (the `test_partial_with_strictly_better_per_item_pricing_can_still_win` regression test pins this trade-off).
 
-If no distributor has a non-zero `cost_score` AND non-empty quotes, recommender persists `score=0.0` with rationale "no priced quotes received before deadline" — does not crash, does not pick arbitrarily.
+If no distributor has any priced quotes, recommender persists `score=0.0` with rationale "no priced quotes received before deadline" — does not crash, does not pick arbitrarily.
+
+### Scoring fix — live verification (2026-05-14, rfp_request_id=1)
+
+| Distributor | Quotes | Pre-fix score | **Post-fix score** | Pre-fix rank | **Post-fix rank** |
+|---|---:|---:|---:|---:|---:|
+| Carolina Fresh Produce Co. | 9 complete | 0.496 | **0.7976** | 4th | **1st (pick)** |
+| Southern Harvest Distributors | 5 partial ("get back to you on the rest") | 0.8148 (winner) | 0.7072 | 1st | 2nd |
+| Piedmont Wholesale Foods | 7, ≥1 null delivery_days | — | 0.3435 | — | 3rd |
+| Foothills Organic Distribution | 7, all null delivery_days, 21/35 missing fields | — | 0.1500 | — | 4th |
+
+The pre-fix bug was identified during the first live finalize after Phase 6 went green; the fix landed in this session along with two new regression tests (`test_complete_competitive_outranks_partial_equivalent`, `test_partial_with_strictly_better_per_item_pricing_can_still_win`).
 
 ### Schema delta — migration `0004_phase6_inbox`
 
@@ -678,6 +708,21 @@ When the user triggers Poll Inbox or Finalize from the footer, the page calls `r
 ## Restaurant Choice
 
 **Sweetgreen — Park Road Shopping Center, 4329 Park Rd, Charlotte, NC 28209.** Public HTML menu snapshot saved to `data/menus/sweetgreen.html`. Chosen because the menu is ingredient-forward (each dish lists its components), which exercises the parser's "high-confidence ingredient extraction" path well.
+
+## Testing infrastructure
+
+**Separate test database — `pathway_test`.** The pytest autouse `_reset_state` fixture issues `TRUNCATE TABLE … RESTART IDENTITY CASCADE` on 11 tables between every test for isolation. For the first half of the project that fixture ran against whatever DB `SessionLocal` was bound to — i.e. the dev DB inherited from `.env`. Three pre-Loom dev-DB wipes (post-Phase 6, post-Phase 7, and once after `make fmt` + commit) all traced to this exact path.
+
+**Fix** (`backend/tests/conftest.py`):
+
+1. The first statements in `conftest.py` override `os.environ["DATABASE_URL"]` to `…/pathway_test` **before any `app.*` import**, so the cached pydantic Settings and the module-level `app.db.engine` both bind to the test DB.
+2. `pytest_configure` provisions `pathway_test` on first run — `CREATE DATABASE` via asyncpg if missing, then `alembic upgrade head`. Idempotent on subsequent runs.
+3. A **load-bearing assert at module top** refuses to load the test suite unless `engine.url` ends in `/pathway_test`. If any future change re-shuffles import order or env handling, pytest fails to *collect* — better a noisy failure at startup than a silent wipe halfway through. **Do not remove this assert.**
+4. The truncate fixtures themselves are unchanged — they just now target the test DB. Per-test truncation is still required for inter-test isolation; the bug was *which DB*, not the truncating itself.
+
+**Override:** export `TEST_DATABASE_URL=…` for a differently named test DB.
+
+**Proof of durability:** `make demo` → snapshot dev counts → `make test` (99 pass) → re-snapshot dev counts → `diff` is empty. Locked in as the regression test before re-seeding for the Loom.
 
 ---
 

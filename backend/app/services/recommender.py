@@ -1,18 +1,33 @@
 """Phase 6 — Recommendation engine with explicit null-safety.
 
 Scoring weights:
-    0.50 × cost_score
+    0.35 × cost_score          (per-item rank — apples-to-apples)
     0.20 × delivery_score
-    0.15 × moq_fit_score
+    0.10 × moq_fit_score
     0.15 × completeness_score
+    0.20 × coverage_score      (fraction of RFP basket quoted)
+
+**Cost is scored per-item, not by basket total.** For each ingredient
+with ≥2 priced quotes across the cohort, distributors are ranked by
+unit_price (cheapest=1.0, most expensive=0.0, linear). A distributor's
+cost_score is the mean of its per-item ranks. A distributor that
+quoted fewer items can NOT gain a cost advantage just by having a
+smaller basket — they're scored only on the ingredients where direct
+comparison is possible. Distributors with no comparable items get 0.5
+(neutral — uncomparable, not punished).
+
+**Coverage is a first-class weighted component** at 20% — a partial
+quote shouldn't outrank a complete one unless its per-item pricing is
+genuinely better. The basket_total is still computed and surfaced in
+the rationale as informational context (it's what the buyer pays for
+that distributor's subset), but it does NOT drive ranking.
 
 Null-safety rules (asymmetric, intentional — documented in spec.md):
 
   * `unit_price`=NULL OR `wholesale_quantity`=NULL (TBD)
-        → that ingredient is EXCLUDED from the basket sum AND the
-          basket is flagged `incomplete_comparison=true`. Reason: we
-          can't compute basket cost without both — silently scoring as
-          zero would make the distributor look artificially cheap.
+        → that ingredient is EXCLUDED from the informational basket
+          sum, excluded from per-item cost comparison, and the basket
+          is flagged `incomplete_comparison=true`.
   * `delivery_days`=NULL
         → scored at 0.0 (WORST-CASE). Reason: a distributor refusing
           to commit to delivery is a real negative signal, not absent
@@ -21,10 +36,6 @@ Null-safety rules (asymmetric, intentional — documented in spec.md):
           commit". The rationale text says this verbatim.
   * `min_order_qty`=NULL → scored at 0.5 (neutral). Reason: unknown
         MOQ is genuinely ambiguous (some distributors don't enforce one).
-
-Cross-distributor basket coverage is surfaced as `coverage_pct` because
-distributors quote subsets — the recommendation isn't always apples-to-
-apples and the rationale calls that out.
 """
 
 from __future__ import annotations
@@ -48,10 +59,11 @@ from app.services.quantity_aggregator import normalize_to_wholesale_unit
 
 log = structlog.get_logger("recommender")
 
-WEIGHT_COST = 0.50
+WEIGHT_COST = 0.35
 WEIGHT_DELIVERY = 0.20
-WEIGHT_MOQ = 0.15
+WEIGHT_MOQ = 0.10
 WEIGHT_COMPLETENESS = 0.15
+WEIGHT_COVERAGE = 0.20
 
 # MOQ fit: <= 4 weeks of demand scored 1.0, > 12 weeks scored 0.0.
 MOQ_FIT_GOOD_WEEKS = Decimal("4")
@@ -169,18 +181,55 @@ def _score_cost(
     return total.quantize(Decimal("0.01")), excluded, incomplete
 
 
-def _normalize_cost(basket: Decimal | None, all_baskets: list[Decimal | None]) -> float:
-    """Lowest basket cost = 1.0, highest = 0.0, linear. None → 0.0."""
-    if basket is None:
-        return 0.0
-    valid = [b for b in all_baskets if b is not None]
-    if not valid:
-        return 0.0
-    lo = min(valid)
-    hi = max(valid)
-    if hi == lo:
-        return 1.0
-    return float((hi - basket) / (hi - lo))
+def _per_item_cost_scores(
+    quotes_by_distributor: dict[int, list[Quote]],
+) -> tuple[dict[int, float], dict[int, int]]:
+    """Per-item unit-price ranking. Replaces basket-total comparison.
+
+    For each ingredient with ≥2 priced quotes across the cohort, the
+    distributors are ranked by unit_price (cheapest=1.0, most expensive=0.0,
+    linear). Each distributor's cost_score is the mean of their per-item
+    ranks across the comparable items. Distributors with no comparable
+    items get 0.5 (neutral — uncomparable, not punished and not rewarded).
+
+    The previous basket-total scoring rewarded incompleteness: a distributor
+    that quoted fewer items had a smaller basket sum and looked "cheaper"
+    by default. Per-item ranking is apples-to-apples — it asks "who's
+    cheaper on the same goods" instead of "who quoted a smaller total."
+
+    Returns:
+        (cost_scores_by_dist_id, comparable_item_count_by_dist_id)
+    """
+    per_ingredient: dict[int, list[tuple[int, Decimal]]] = {}
+    for dist_id, quotes in quotes_by_distributor.items():
+        for q in quotes:
+            if q.unit_price is None:
+                continue
+            per_ingredient.setdefault(q.ingredient_id, []).append(
+                (dist_id, Decimal(str(q.unit_price)))
+            )
+
+    per_dist_scores: dict[int, list[float]] = {d: [] for d in quotes_by_distributor}
+    for entries in per_ingredient.values():
+        if len(entries) < 2:
+            # Only one distributor quoted this ingredient — uncomparable,
+            # skip rather than auto-award. Avoids monopoly-of-quote credit.
+            continue
+        prices = [p for _, p in entries]
+        lo, hi = min(prices), max(prices)
+        if hi == lo:
+            for d, _ in entries:
+                per_dist_scores[d].append(1.0)
+            continue
+        for d, p in entries:
+            per_dist_scores[d].append(float((hi - p) / (hi - lo)))
+
+    scores: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    for d, sc in per_dist_scores.items():
+        counts[d] = len(sc)
+        scores[d] = (sum(sc) / len(sc)) if sc else 0.5
+    return scores, counts
 
 
 def _score_delivery(quotes: list[Quote]) -> tuple[float, ComponentScore]:
@@ -394,7 +443,9 @@ async def compute_for_rfp(rfp_request_id: int, *, force: bool = False) -> Recomm
             ).scalars()
         }
 
-        # First pass: per-distributor basket cost (null-safe).
+        # First pass: per-distributor basket total (informational only —
+        # surfaced in the rationale, NOT used for ranking) + null-price /
+        # TBD-quantity exclusions that flag incomplete_comparison.
         baskets: dict[int, Decimal | None] = {}
         excluded_by_dist: dict[int, list[str]] = {}
         incomplete_by_dist: dict[int, bool] = {}
@@ -404,7 +455,10 @@ async def compute_for_rfp(rfp_request_id: int, *, force: bool = False) -> Recomm
             baskets[dist_id] = basket
             excluded_by_dist[dist_id] = excluded
             incomplete_by_dist[dist_id] = incomplete
-        all_baskets = list(baskets.values())
+
+        # Apples-to-apples cost: rank distributors per-ingredient on unit
+        # price, average their ranks across comparable items.
+        cost_scores_by_dist, comparable_counts = _per_item_cost_scores(quotes_by_distributor)
 
         # Second pass: full scoring.
         ranked: list[DistributorRecommendation] = []
@@ -414,59 +468,83 @@ async def compute_for_rfp(rfp_request_id: int, *, force: bool = False) -> Recomm
             if d is None:
                 continue
             qbi = {q.ingredient_id: q for q in dist_quotes}
-            cost_norm = _normalize_cost(baskets[dist_id], all_baskets)
+
+            cost_norm = cost_scores_by_dist[dist_id]
+            comp_n = comparable_counts[dist_id]
+            cost_note = (
+                f"per-item rank averaged {cost_norm:.2f} across {comp_n} ingredient(s) "
+                f"where another distributor also quoted a price"
+                if comp_n > 0
+                else "no priced-quote overlap with other distributors — scored neutral 0.5"
+            )
+            if baskets[dist_id] is not None:
+                cost_note += f"; informational basket cost ${baskets[dist_id]:.2f}/week"
+            if excluded_by_dist[dist_id]:
+                cost_note += f"; excluded from basket: {', '.join(excluded_by_dist[dist_id])}"
             cost_comp = ComponentScore(
                 name="cost",
                 raw_value=float(baskets[dist_id]) if baskets[dist_id] is not None else None,
                 normalized=cost_norm,
-                null_imputed=baskets[dist_id] is None,
-                note=(
-                    f"basket cost ${baskets[dist_id]:.2f}"
-                    if baskets[dist_id] is not None
-                    else "no priced ingredients"
-                )
-                + (
-                    f"; excluded: {', '.join(excluded_by_dist[dist_id])}"
-                    if excluded_by_dist[dist_id]
-                    else ""
-                ),
+                null_imputed=comp_n == 0,
+                note=cost_note,
             )
+
             delivery_norm, delivery_comp = _score_delivery(dist_quotes)
             moq_norm, moq_comp = _score_moq(qbi, items_by_ingredient, ingredient_names)
             completeness_norm, completeness_comp = _score_completeness(dist_quotes)
+
+            quoted_count = len(qbi)
+            coverage = Decimal(str(quoted_count)) / Decimal(str(requested_count)) * Decimal("100")
+            coverage_norm = float(coverage) / 100.0
+            coverage_comp = ComponentScore(
+                name="coverage",
+                raw_value=float(coverage),
+                normalized=coverage_norm,
+                null_imputed=False,
+                note=f"quoted {quoted_count}/{requested_count} requested items ({coverage:.1f}%)",
+            )
+
             score = (
                 WEIGHT_COST * cost_norm
                 + WEIGHT_DELIVERY * delivery_norm
                 + WEIGHT_MOQ * moq_norm
                 + WEIGHT_COMPLETENESS * completeness_norm
+                + WEIGHT_COVERAGE * coverage_norm
             )
 
-            quoted_count = len(qbi)
-            coverage = Decimal(str(quoted_count)) / Decimal(str(requested_count)) * Decimal("100")
             incomplete = incomplete_by_dist[dist_id] or quoted_count < requested_count
 
             rationale = (
                 f"{d.name} scored {score:.2f} on a basket of {quoted_count}/{requested_count} "
-                f"requested items "
-                f"(coverage {coverage:.0f}%). "
+                f"requested items (coverage {coverage:.0f}%). "
                 + (
-                    f"Basket cost ${baskets[dist_id]:.2f}/week. "
+                    f"Per-item cost rank averaged {cost_norm:.2f} across {comp_n} "
+                    f"ingredient(s) where another distributor also quoted. "
+                    if comp_n > 0
+                    else "No priced-quote overlap with other distributors; cost scored neutral 0.5. "
+                )
+                + (
+                    f"Informational basket cost ${baskets[dist_id]:.2f}/week. "
                     if baskets[dist_id] is not None
-                    else "No priced ingredients — cost component scored 0. "
+                    else "No priced ingredients — basket cost unavailable. "
                 )
                 + delivery_comp.note
                 + ". "
                 + moq_comp.note
                 + ". "
                 + completeness_comp.note
+                + ". "
+                + coverage_comp.note
                 + "."
             )
             if excluded_by_dist[dist_id]:
-                rationale += f" Excluded from cost: {', '.join(excluded_by_dist[dist_id])}."
+                rationale += f" Excluded from basket: {', '.join(excluded_by_dist[dist_id])}."
             if incomplete:
                 rationale += (
-                    " Basket flagged incomplete_comparison=true; this score "
-                    "is not strictly apples-to-apples vs other distributors."
+                    " Basket flagged incomplete_comparison=true; this distributor "
+                    "quoted on a subset of the RFP. Coverage is reflected in the "
+                    "score (20% weight); cost is compared per-item against "
+                    "distributors who quoted the same ingredients, not by basket total."
                 )
 
             ranked.append(
@@ -478,7 +556,13 @@ async def compute_for_rfp(rfp_request_id: int, *, force: bool = False) -> Recomm
                     quoted_ingredient_count=quoted_count,
                     requested_ingredient_count=requested_count,
                     incomplete_comparison=incomplete,
-                    components=[cost_comp, delivery_comp, moq_comp, completeness_comp],
+                    components=[
+                        cost_comp,
+                        delivery_comp,
+                        moq_comp,
+                        completeness_comp,
+                        coverage_comp,
+                    ],
                     rationale=rationale,
                     excluded_for_cost=excluded_by_dist[dist_id],
                 )

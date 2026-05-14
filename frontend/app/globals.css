@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body {
+    @apply bg-ink-900 text-ink-100 font-sans antialiased;
+  }
+  body {
+    /* Subtle gradient lift on the very top so the header reads as a layer. */
+    background-image:
+      radial-gradient(ellipse 80rem 30rem at 50% -10rem, rgba(16, 185, 129, 0.06), transparent 60%),
+      linear-gradient(180deg, #0a0a0c 0%, #09090b 100%);
+  }
+  /* Numbers should always be mono so prices and IDs align without effort. */
+  .num {
+    @apply font-mono tabular-nums;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded border border-ink-600/70 bg-ink-800/70 backdrop-blur-sm;
+  }
+  .card-pad {
+    @apply px-6 py-5;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs;
+  }
+  .stage-heading {
+    @apply flex items-center gap-2 text-h1 font-semibold tracking-tight text-ink-50;
+  }
+  .stage-eyebrow {
+    @apply text-xs uppercase tracking-[0.18em] text-ink-300;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded border px-3 py-1.5 text-sm transition-colors;
+  }
+  .btn-primary {
+    @apply border-accent/40 bg-accent/15 text-accent hover:bg-accent/25;
+  }
+  .btn-ghost {
+    @apply border-ink-500 bg-transparent text-ink-100 hover:bg-ink-700/40;
+  }
+  .btn[disabled] {
+    @apply cursor-not-allowed opacity-40 hover:bg-transparent;
+  }
+}

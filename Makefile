@@ -5,21 +5,30 @@ BACKEND := backend
 UV := uv
 COMPOSE := docker compose
 
-.PHONY: help setup db-up db-down db-wait db-migrate db-revision db-downgrade dev test lint fmt clean
+FRONTEND := frontend
+
+.PHONY: help setup db-up db-down db-wait db-migrate db-revision db-downgrade dev test lint fmt clean \
+	demo demo-reset poll finalize frontend-dev frontend-build
 
 help:
 	@echo "Targets:"
-	@echo "  setup        Install backend deps with uv (creates .venv + uv.lock)"
-	@echo "  db-up        Start Postgres (docker compose) and wait for healthy"
-	@echo "  db-down      Stop Postgres"
-	@echo "  db-migrate   Apply Alembic migrations to head"
-	@echo "  db-revision  Autogenerate a new migration: make db-revision m='message'"
-	@echo "  db-downgrade Downgrade one revision (or set rev=...)"
-	@echo "  dev          Run FastAPI with reload (depends on db-up)"
-	@echo "  test         Run pytest"
-	@echo "  lint         Run ruff check + format check"
-	@echo "  fmt          Run ruff format (writes)"
-	@echo "  clean        Remove __pycache__, .pytest_cache, .ruff_cache"
+	@echo "  setup         Install backend deps with uv (creates .venv + uv.lock)"
+	@echo "  db-up         Start Postgres (docker compose) and wait for healthy"
+	@echo "  db-down       Stop Postgres"
+	@echo "  db-migrate    Apply Alembic migrations to head"
+	@echo "  db-revision   Autogenerate a new migration: make db-revision m='message'"
+	@echo "  db-downgrade  Downgrade one revision (or set rev=...)"
+	@echo "  dev           Run FastAPI with reload (depends on db-up)"
+	@echo "  test          Run pytest"
+	@echo "  lint          Run ruff check + format check"
+	@echo "  fmt           Run ruff format (writes)"
+	@echo "  clean         Remove __pycache__, .pytest_cache, .ruff_cache"
+	@echo "  demo          End-to-end demo seed (idempotent; no-op if RFP exists)"
+	@echo "  demo-reset    Wipe demo content rows + re-seed (preserves distributors + schema)"
+	@echo "  poll          Poll inbox for the most recent RFP"
+	@echo "  finalize      Force-compute the recommendation for the most recent RFP"
+	@echo "  frontend-dev  Run the Next.js dev server"
+	@echo "  frontend-build  Build the Next.js production bundle"
 
 setup:
 	cd $(BACKEND) && $(UV) sync
@@ -65,3 +74,27 @@ fmt:
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 	rm -rf $(BACKEND)/.pytest_cache $(BACKEND)/.ruff_cache
+
+# ---------------------------------------------------------------------------
+# Phase 7 — demo orchestration
+# ---------------------------------------------------------------------------
+demo:
+	cd $(BACKEND) && $(UV) run python -m app.cli run-demo
+
+demo-reset:
+	cd $(BACKEND) && $(UV) run python -m app.cli run-demo --reset-data --yes
+
+poll:
+	cd $(BACKEND) && $(UV) run python -m app.cli poll-latest
+
+finalize:
+	cd $(BACKEND) && $(UV) run python -m app.cli finalize-latest
+
+# ---------------------------------------------------------------------------
+# Phase 7 — frontend
+# ---------------------------------------------------------------------------
+frontend-dev:
+	cd $(FRONTEND) && npm run dev
+
+frontend-build:
+	cd $(FRONTEND) && npm run build

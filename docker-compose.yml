@@ -22,6 +22,19 @@ services:
       DATABASE_URL: postgresql+asyncpg://pathway:pathway@db:5432/pathway
       LOG_LEVEL: INFO
       ENV: dev
+      # Secrets pulled from `.env` (next to docker-compose.yml). Each is
+      # optional individually but the full pipeline needs them populated.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      USDA_FDC_API_KEY: ${USDA_FDC_API_KEY:-}
+      USDA_AMS_API_KEY: ${USDA_AMS_API_KEY:-}
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RFP_FROM_EMAIL: ${RFP_FROM_EMAIL:-procurement@getserviceledger.com}
+      RFP_DEMO_INBOX: ${RFP_DEMO_INBOX:-daniel@getserviceledger.com}
+      IMAP_HOST: ${IMAP_HOST:-imap.gmail.com}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     depends_on:
       db:
         condition: service_healthy
@@ -29,7 +42,31 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    profiles: ["full"]
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      # Inside the compose network the browser still hits the backend via the
+      # host port 8000; for server-side fetches from within the container we
+      # use the docker service name.
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      NODE_ENV: production
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:

@@ -48,6 +48,14 @@ async def create_restaurant(body: RestaurantCreate, session: SessionDep) -> Rest
     return restaurant
 
 
+@router.get("/{restaurant_id}", response_model=RestaurantOut)
+async def get_restaurant(restaurant_id: int, session: SessionDep) -> Restaurant:
+    r = await session.get(Restaurant, restaurant_id)
+    if r is None:
+        raise HTTPException(status_code=404, detail=f"restaurant {restaurant_id} not found")
+    return r
+
+
 def _resolve_menu_path(raw: str) -> Path:
     path = Path(raw)
     if not path.is_absolute():

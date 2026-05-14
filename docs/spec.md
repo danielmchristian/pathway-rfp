@@ -600,6 +600,81 @@ After Phase 5.1's `<rfp-2-*>` send, the test suite truncates DB state between ev
 
 **F1 verified live:** second `poll-inbox` invocation returned `inbound_count=0`, `duplicate_uids_skipped=24` — all previously fetched UIDs blocked at the unique constraint.
 
+## Phase 7 — Demo orchestration + Next.js UI
+
+### Part A — `make demo`
+
+One command runs the pipeline end-to-end against an empty DB and leaves it in a coherent demo-ready state:
+
+```
+make demo          # idempotent — no-ops if an RFP already exists
+make demo-reset    # TRUNCATEs demo content rows, then re-runs
+make poll          # poll-inbox on the most recent RFP
+make finalize      # force-compute the recommendation
+```
+
+The CLI command is `python -m app.cli run-demo [--reset-data] [--yes]`. Each step is guarded by a count check so a partial re-run picks up where it left off (skips parse if dishes exist, skips enrich if every ingredient has an FDC id, etc.). Two helper commands `latest-rfp`, `poll-latest`, `finalize-latest` auto-discover the most recent `rfp_request_id` for the demo restaurant.
+
+**Idempotency contract:**
+
+| Pre-state | `make demo` behavior |
+|---|---|
+| Empty DB | Full pipeline (seed → parse → enrich → discover → send_rfps) |
+| Mid-pipeline (e.g. dishes exist, no RFP) | Resumes from the first incomplete step |
+| Already-populated (RFP exists) | No-op, prints summary with existing IDs |
+
+**Reset:** `make demo-reset` (or `--reset-data --yes`) runs a **single TRUNCATE ... CASCADE** statement against the demo content tables. The statement explicitly lists every dependent table (`rfp_requests`, `rfp_request_items`, `rfp_emails`, `imap_seen_uids`, `quotes`, `recommendations`, `dishes`, `dish_ingredients`, `ingredient_prices`, `ingredients`, `llm_usage`) so PostgreSQL resolves all FK dependencies atomically — no half-completed truncation. **`distributors` and `restaurants` are preserved** (seed roster + idempotent restaurant row). **The schema is never touched** — Alembic migrations stay applied.
+
+### Part B — Next.js UI (frontend/)
+
+Next.js 14 App Router + TypeScript + Tailwind, single-page pipeline visualization that renders server-side against the live backend. The page is one cohesive vertical scroll through all six pipeline stages with a sticky cost-dashboard header and sticky pipeline-triggers footer.
+
+**Design tokens (defined, not default Tailwind):** zinc backbone (`ink` palette), one accent (`emerald`), dark mode only (`color-scheme: dark` + `darkMode: "class"` on `<html>`). Numbers in `font-mono` (`.num` utility) so prices and IDs align. Tight type scale — no `text-lg` (everything in between looks soft). Generous whitespace (`py-12` between stage cards). No marketing shadows; `rounded-md` everywhere. Subtle emerald glow at the top of the page lifts the header without competing for attention.
+
+**Stage components** (one per pipeline step, server-rendered for SSR speed):
+
+1. **`StageMenu`** — dish cards in a responsive grid; per-dish `parse_confidence` badge (traffic-light: green ≥ 0.8 / amber 0.5–0.8 / rose < 0.5); ingredient chips with their own per-ingredient `estimation_confidence` badges. The above-and-beyond surface for the parser's honest confidence scoring.
+2. **`StagePricing`** — sortable table of FDC-matched ingredients with latest price/unit and 30-day trend. Trend arrow is **asymmetric**: rising price = rose (bad for the buyer), falling = emerald, flat = neutral. Rows with `pricing_unavailable=true` render an explicit "no AMS feed" pill — never imputed.
+3. **`StageDistributors`** — distributor cards with specialty chips, match score, distance, and a `source` badge (`seed` / `google_places` / `google_places_merged`). Sorted by match count descending; controls (0 matches) rendered at lower opacity but kept visible.
+4. **`StageRfpEmails`** — clickable list of outbound RFPs (one per distributor); click opens a modal with the full Claude-composed body, the minted `Message-ID`, the actual `daniel+slug@...` recipient, and the nominal `.example` placeholder. Follow-ups grouped separately. The `unassignedIngredients` count is rendered as an amber callout — *"86 ingredients unassigned — mostly in-house preparations + items outside the distributor cohort"* — with an expandable full list. Honest gap, surfaced loudly.
+5. **`StageComparison`** — distributor × ingredient matrix, **grouped by FDC category** so the per-distributor basket is legible (produce rows together, protein rows together, etc.). Each column header carries a coverage chip (`8/21 · 38%`) — green ≥ 80%, amber ≥ 40%, neutral below. Empty cells (no quote received) are visually distinct from cells with a NULL price (amber "no price" pill).
+6. **`StageRecommendation`** — pick card with the distributor name, score, coverage_pct, and the `incomplete_comparison` callout rendered as an explicit amber explanation. Four component progress bars (cost/delivery/MOQ/completeness) with weight × normalized score; null-imputed components colored amber instead of emerald so the asymmetric null-safety rule is visible. Rationale text below, in italic. Runners-up collapsed below the pick.
+
+**Empty states for stages 5 & 6** (per amendment): after `make demo` but before any quotes have been collected, these stages render polished `EmptyState` cards:
+
+- Stage 5: *"Awaiting distributor quotes. Reply to the RFP emails, then click **Poll Inbox** below to parse the replies. This panel will populate as quotes arrive."*
+- Stage 6: *"Recommendation pending — collect quotes first."* (with a contextual hint from `not_ready_reason`).
+
+When the user triggers Poll Inbox or Finalize from the footer, the page calls `router.refresh()` after the request completes, re-fetching all server components and re-rendering Stages 4–6 in place. **No page jank, no flash.** That's the core Loom moment — the agentic loop happening on camera.
+
+**Cost dashboard** (sticky upper-right): reads `/api/usage`, shows total `$X.XX` in emerald + per-stage breakdown bars with call counts. Persistent so the viewer can watch it tick up as poll/finalize fires.
+
+**SSE live events** (sticky footer): subscribes to `GET /api/restaurants/{id}/events` via the browser `EventSource` API (no library). Listens for the full set of stage:status pairs the backend emits and renders the last 4 as inline pills in the footer. A small green dot pulses while connected; greys when disconnected. **Fallback:** the trigger buttons always force a `router.refresh()` regardless of SSE delivery, so even if events drop the UI still updates.
+
+**Backend addition (single small route):** `GET /api/restaurants/{id}` for the header to render the restaurant name + location. No schema change.
+
+**Docker:** `frontend/Dockerfile` is a multi-stage `node:20-alpine` build using Next.js's `output: "standalone"`. `docker-compose.yml` brings up `db`, `backend`, `frontend` together; secrets are read from `.env` at the compose root. `NEXT_PUBLIC_API_BASE_URL` defaults to `http://localhost:8000` for local dev and `http://backend:8000` inside the compose network (overridable per environment via `.env.local.example`).
+
+### Phase 7 verified run (2026-05-14)
+
+`make demo` against an empty DB produced:
+
+| Table | Rows |
+|---|---:|
+| restaurants | 1 |
+| dishes | 45 |
+| dish_ingredients | 267 |
+| ingredients | 107 |
+| ingredient_prices | 2,102 |
+| distributors | 10 |
+| rfp_requests | 1 |
+| rfp_request_items | 34 |
+| rfp_emails | 5 |
+| quotes / recommendations | 0 / 0 (awaiting replies) |
+| llm_usage | 7 calls / $0.34 |
+
+5 RFPs sent to `daniel+<slug>@getserviceledger.com` (Piedmont Wholesale, Southern Harvest, Carolina Fresh Produce, Charlotte Specialty Foods, Catawba Valley Bakery Supply — top-5 distributors above `min_matches=2`). Frontend `npm run build` and `npm run start` both clean; SSR render against the live backend rendered all 6 stage headings, the Carolina Fresh card content, the cost dashboard, and the empty states for Stages 5 & 6.
+
 ## Restaurant Choice
 
 **Sweetgreen — Park Road Shopping Center, 4329 Park Rd, Charlotte, NC 28209.** Public HTML menu snapshot saved to `data/menus/sweetgreen.html`. Chosen because the menu is ingredient-forward (each dish lists its components), which exercises the parser's "high-confidence ingredient extraction" path well.

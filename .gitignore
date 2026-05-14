@@ -8,3 +8,9 @@ node_modules/
 *.db
 .DS_Store
 backend/alembic/versions/__pycache__/
+.ruff_cache/
+.pytest_cache/
+.python-version
+*.egg-info/
+dist/
+build/

@@ -14,7 +14,7 @@ End-to-end pipeline that ingests a restaurant menu and produces distributor RFP 
 
 - **Backend:** Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic
 - **DB:** PostgreSQL 16 (via Docker Compose)
-- **LLM:** Anthropic Claude API (model: `claude-sonnet-4-5`). Use tool-use for structured outputs.
+- **LLM:** Anthropic Claude API (model: `claude-sonnet-4-6`). Use tool-use for structured outputs. Pricing (per MTok, verified via `claude-api` skill on 2026-05-13): input $3.00, output $15.00, 5-minute cache write $3.75 (1.25× input), cache read $0.30 (0.10× input). No prompt caching used in Phase 2 (per-restaurant HTML is unique per parse); revisit when stages reuse prompts.
 - **Email:** Resend API for send. IMAP polling (or Mailgun inbound routes) for receive.
 - **Distributor discovery:** Google Places API; mock seed data as fallback.
 - **USDA:** FoodData Central API (`api.nal.usda.gov/fdc/v1`).
@@ -70,6 +70,22 @@ UI (Next.js) <---- SSE stream + REST ---- FastAPI
 ```
 
 Every stage reads/writes the DB. DB is the source of truth. Stages are independently triggerable for demo + recovery.
+
+## Pipeline Event Bus
+
+In-memory pub/sub. Subscribers receive events for a single `restaurant_id`. Events are **not** persisted — they exist to drive the streaming UI and observability and are reconstructible from DB state if needed.
+
+- Event names follow `"{stage}:{status}"`.
+- `stage` ∈ `menu_parse | usda_match | distributor_discovery | rfp_send | quote_parse | recommend`.
+- `status` ∈ `start | progress | complete | error`.
+- Each `restaurant_id` keeps a **ring buffer of the last 10 events**; new subscribers receive the buffered events first, then live events.
+- Service functions are decorated with `@stage("menu_parse")` which auto-emits `start` before and `complete` after, or `error` on raise.
+
+## Idempotency
+
+- **Menu re-parse**: deletes the restaurant's dishes (cascade clears `dish_ingredients`), then re-inserts dishes + dish_ingredients in a single short DB transaction. Ingredients are upserted on `normalized_name` (`INSERT … ON CONFLICT DO UPDATE … RETURNING id`) and are **not** deleted, since they're shared across restaurants and downstream RFPs.
+- **LLM call boundary**: Claude is called *outside* the DB transaction (held by `traced_call` on its own session). The tool-use response shape is validated before opening the persistence transaction — failures raise before any DELETE.
+- **`llm_usage` durability**: `traced_call` writes its row on a fresh session, so usage is logged even when the calling transaction rolls back.
 
 ## Database Schema (initial)
 
@@ -267,7 +283,7 @@ LOG_LEVEL=INFO
 
 ## Restaurant Choice
 
-To be filled in Phase 1. Pick a real local restaurant with a clear, public menu (PDF or HTML). Save a copy to `data/menus/` for reproducibility.
+**Sweetgreen — Park Road Shopping Center, 4329 Park Rd, Charlotte, NC 28209.** Public HTML menu snapshot saved to `data/menus/sweetgreen.html`. Chosen because the menu is ingredient-forward (each dish lists its components), which exercises the parser's "high-confidence ingredient extraction" path well.
 
 ---
 

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app import __version__
 from app.db import engine
 from app.logging import RequestContextMiddleware, configure_logging
-from app.routers import health
+from app.routers import health, restaurants, usage
 
 
 @asynccontextmanager
@@ -23,6 +23,8 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
+    app.include_router(restaurants.router)
+    app.include_router(usage.router)
     return app
 
 

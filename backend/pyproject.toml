@@ -13,6 +13,11 @@ dependencies = [
     "pydantic-settings==2.7.0",
     "structlog==24.4.0",
     "python-multipart==0.0.20",
+    "anthropic==0.102.0",
+    "beautifulsoup4==4.14.3",
+    "lxml==6.1.0",
+    "typer==0.25.1",
+    "sse-starlette==3.0.3",
 ]
 
 [dependency-groups]
@@ -44,3 +49,4 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/versions/*.py" = ["E", "F", "I", "N"]
+"app/cli.py" = ["B008"]  # typer.Argument() in defaults is idiomatic

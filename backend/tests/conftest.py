@@ -45,7 +45,7 @@ async def db_session():
         await session.execute(
             text(
                 "TRUNCATE TABLE llm_usage, dish_ingredients, dishes, ingredient_prices, "
-                "restaurants, ingredients RESTART IDENTITY CASCADE"
+                "restaurants, ingredients, distributors RESTART IDENTITY CASCADE"
             )
         )
         await session.commit()

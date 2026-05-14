@@ -218,6 +218,40 @@ llm_usage
   - Weighted: 50% total cost, 20% delivery speed, 15% min order fit, 15% completeness/reliability
   - Persist score + rationale in `recommendations`
 
+## Distributor Discovery Strategy (Phase 4)
+
+**Seed file is the primary data source.** `data/distributors_seed.json` contains 10 curated Charlotte/Gastonia NC area food wholesale distributors with realistic addresses, lat/long in actual industrial corridors, `*.example` email domains, and a mix of specialties chosen so the matching algorithm gets exercised (8 overlap with Sweetgreen's ingredient mix, 2 are deliberate non-overlaps — `Tidewater Seafood`, `Three Rivers Beverage Co.`).
+
+**Google Places is optional enrichment**, gated on `GOOGLE_PLACES_API_KEY`. When set, two `places:searchNearby` calls (new API, `places.googleapis.com/v1/places:searchNearby` with `X-Goog-FieldMask`) are issued against the restaurant's lat/long with a 50km radius — one for `food_store`/`wholesaler` types, one for `grocery_store`/`supermarket` types. Results are deduplicated by `place_id` then by normalized name against existing seed rows.
+
+**Places noise filter.** Google often returns retail chains (Harris Teeter, Costco/Sam's Club), individual restaurants, and non-food businesses caught by generic "wholesale" matching. A Claude tool-use pass (`classify_distributor_candidates` in `app/llm/tools.py`) accepts the batched candidate list and returns a `{is_wholesale_distributor, reason}` decision per candidate. The decision count is surfaced as `places_filtered_out` in the discovery result. Logged to `llm_usage` under stage `distributor_filter`.
+
+**Merge policy when Places matches a seed entry.**
+- **Seed wins authoritatively** on: name, address, latitude, longitude.
+- **Places wins** on: phone, email, website (the point of optional enrichment is contact freshness).
+- **Specialties** are union'd between seed tags and Places-derived tags.
+- `source` becomes `'google_places_merged'` after a merge; brand-new Places records use `'google_places'`; pure seed rows keep `'seed'`.
+
+**Matching algorithm** (`app/services/distributor_matching.py`, pure compute):
+1. Translate each ingredient's FDC `category` plus name hints into a set of tags from a canonical specialty vocabulary (`produce`, `leafy_greens`, `tomatoes`, `protein_meat`, `protein_poultry`, `protein_seafood`, `dairy_eggs`, `dry_goods`, `oils`, `bakery`, `beverages`, `organic`, `specialty_ethnic`). `Spices and Herbs` → `produce + leafy_greens + dry_goods` so fresh herbs match produce distributors.
+2. For each distributor, count restaurant ingredients with at least one tag overlap.
+3. Sort by `matched_ingredient_count` desc, then Haversine distance from the restaurant asc.
+
+**Seed roster:**
+
+| Distributor | Specialty focus | City |
+|---|---|---|
+| Carolina Fresh Produce Co. | produce, leafy_greens, tomatoes, organic | Charlotte |
+| Piedmont Wholesale Foods | produce, dry_goods, dairy_eggs, oils | Concord |
+| Queen City Meats | protein_meat, protein_poultry | Charlotte |
+| Southern Harvest Distributors | produce, dry_goods | Charlotte |
+| Foothills Organic Distribution | produce, organic, leafy_greens | Gastonia |
+| Catawba Valley Bakery Supply | bakery, dry_goods | Belmont |
+| Carolina Dairy & Eggs | dairy_eggs | Mooresville |
+| Charlotte Specialty Foods | specialty_ethnic, dry_goods, oils | Charlotte (NoDa) |
+| Tidewater Seafood Distributors | protein_seafood (control — no Sweetgreen overlap) | Charlotte |
+| Three Rivers Beverage Co. | beverages (control — no Sweetgreen overlap) | Pineville |
+
 ## Above-and-Beyond Features
 
 1. **Confidence scores everywhere** — `parse_confidence`, `estimation_confidence`, `usda_match_confidence`. UI surfaces low-confidence items with yellow flags so the restaurant can review.

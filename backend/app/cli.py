@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import typer
@@ -11,6 +12,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models.restaurant import Restaurant
+from app.services.distributor_discovery import discover_distributors
 from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
 
@@ -22,6 +24,8 @@ SWEETGREEN = {
     "city": "Charlotte",
     "state": "NC",
     "zip": "28209",
+    "latitude": Decimal("35.1800"),
+    "longitude": Decimal("-80.8380"),
     "menu_source_url": "https://order.sweetgreen.com/",
 }
 
@@ -71,6 +75,19 @@ def enrich(
 
     async def _run() -> None:
         result = await enrich_restaurant(restaurant_id=restaurant_id)
+        typer.echo(json.dumps(result.to_dict()))
+
+    asyncio.run(_run())
+
+
+@app.command()
+def discover(
+    restaurant_id: int = typer.Argument(..., help="Restaurant ID"),
+) -> None:
+    """Load seed distributors + optional Google Places enrichment."""
+
+    async def _run() -> None:
+        result = await discover_distributors(restaurant_id=restaurant_id)
         typer.echo(json.dumps(result.to_dict()))
 
     asyncio.run(_run())

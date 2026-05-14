@@ -1,0 +1,153 @@
+{
+  "_meta": {
+    "description": "Curated Charlotte/Gastonia NC area food wholesale distributors used as the primary distributor roster. Live Google Places enrichment (when GOOGLE_PLACES_API_KEY is set) can backfill contact info and union additional specialties, but cannot overwrite name/address/coords. All email domains use *.example so it is unambiguous test data.",
+    "anchor_restaurant": "Sweetgreen — Park Road Shopping Center (35.180, -80.838)",
+    "specialty_vocabulary": [
+      "produce", "leafy_greens", "tomatoes", "protein_meat", "protein_poultry",
+      "protein_seafood", "dairy_eggs", "dry_goods", "oils", "bakery",
+      "beverages", "organic", "specialty_ethnic"
+    ]
+  },
+  "distributors": [
+    {
+      "name": "Carolina Fresh Produce Co.",
+      "address": "2410 Distribution St",
+      "city": "Charlotte",
+      "state": "NC",
+      "zip": "28206",
+      "phone": "+1-704-555-0142",
+      "email": "orders@carolinafresh.example",
+      "website": "https://carolinafresh.example",
+      "latitude": 35.2607,
+      "longitude": -80.8420,
+      "specialties": ["produce", "leafy_greens", "tomatoes", "organic"],
+      "description": "Family-owned fresh produce distributor serving Charlotte restaurants since 1987. Daily deliveries from local farms and Atlanta terminal market."
+    },
+    {
+      "name": "Piedmont Wholesale Foods",
+      "address": "850 Industrial Blvd",
+      "city": "Concord",
+      "state": "NC",
+      "zip": "28025",
+      "phone": "+1-704-555-0289",
+      "email": "sales@piedmontwholesale.example",
+      "website": "https://piedmontwholesale.example",
+      "latitude": 35.4135,
+      "longitude": -80.5806,
+      "specialties": ["produce", "dry_goods", "dairy_eggs", "oils"],
+      "description": "Full-service broadline foodservice distributor covering produce, dairy, dry goods, and pantry staples across the Piedmont region."
+    },
+    {
+      "name": "Queen City Meats",
+      "address": "5102 Old Pineville Rd",
+      "city": "Charlotte",
+      "state": "NC",
+      "zip": "28217",
+      "phone": "+1-704-555-0317",
+      "email": "wholesale@queencitymeats.example",
+      "website": "https://queencitymeats.example",
+      "latitude": 35.1734,
+      "longitude": -80.8716,
+      "specialties": ["protein_meat", "protein_poultry"],
+      "description": "USDA-inspected meat and poultry wholesaler. Antibiotic-free chicken, dry-aged beef, and custom cuts for restaurants."
+    },
+    {
+      "name": "Southern Harvest Distributors",
+      "address": "9201 Westmoreland Rd",
+      "city": "Charlotte",
+      "state": "NC",
+      "zip": "28214",
+      "phone": "+1-704-555-0455",
+      "email": "info@southernharvest.example",
+      "website": "https://southernharvest.example",
+      "latitude": 35.2247,
+      "longitude": -80.9380,
+      "specialties": ["produce", "dry_goods"],
+      "description": "Regional foodservice distributor specializing in seasonal produce and shelf-stable goods. Twice-weekly delivery routes throughout Mecklenburg County."
+    },
+    {
+      "name": "Foothills Organic Distribution",
+      "address": "1820 W Franklin Blvd",
+      "city": "Gastonia",
+      "state": "NC",
+      "zip": "28052",
+      "phone": "+1-704-555-0608",
+      "email": "hello@foothillsorganic.example",
+      "website": "https://foothillsorganic.example",
+      "latitude": 35.2622,
+      "longitude": -81.1876,
+      "specialties": ["produce", "organic", "leafy_greens"],
+      "description": "Certified-organic produce wholesaler sourcing from small NC and SC farms. Specialty: heirloom greens, root vegetables, and sustainably grown herbs."
+    },
+    {
+      "name": "Catawba Valley Bakery Supply",
+      "address": "320 N Main St",
+      "city": "Belmont",
+      "state": "NC",
+      "zip": "28012",
+      "phone": "+1-704-555-0772",
+      "email": "orders@catawbabaking.example",
+      "website": "https://catawbabaking.example",
+      "latitude": 35.2454,
+      "longitude": -81.0381,
+      "specialties": ["bakery", "dry_goods"],
+      "description": "Wholesale baker and dry goods distributor. Breads, pastries, flours, sugars, and pantry staples."
+    },
+    {
+      "name": "Carolina Dairy & Eggs",
+      "address": "445 Mooresville Commerce Dr",
+      "city": "Mooresville",
+      "state": "NC",
+      "zip": "28117",
+      "phone": "+1-704-555-0901",
+      "email": "wholesale@carolinadairy.example",
+      "website": "https://carolinadairy.example",
+      "latitude": 35.5850,
+      "longitude": -80.8105,
+      "specialties": ["dairy_eggs"],
+      "description": "Dairy and egg distributor sourcing from regional NC dairies. Specialty cheeses, cultured butter, and free-range eggs."
+    },
+    {
+      "name": "Charlotte Specialty Foods",
+      "address": "3018 N Davidson St",
+      "city": "Charlotte",
+      "state": "NC",
+      "zip": "28205",
+      "phone": "+1-704-555-1034",
+      "email": "specialty@clt-specialty.example",
+      "website": "https://clt-specialty.example",
+      "latitude": 35.2450,
+      "longitude": -80.8118,
+      "specialties": ["specialty_ethnic", "dry_goods", "oils"],
+      "description": "Import distributor of Mediterranean, Asian, and Latin American specialty ingredients. Olive oils, vinegars, spices, sauces, condiments."
+    },
+    {
+      "name": "Tidewater Seafood Distributors",
+      "address": "7400 Airport Center Dr",
+      "city": "Charlotte",
+      "state": "NC",
+      "zip": "28208",
+      "phone": "+1-704-555-1168",
+      "email": "orders@tidewaterseafood.example",
+      "website": "https://tidewaterseafood.example",
+      "latitude": 35.2148,
+      "longitude": -80.9462,
+      "specialties": ["protein_seafood"],
+      "description": "Atlantic coast seafood wholesaler. Daily flights of fresh finfish and shellfish from Wilmington, NC and the Outer Banks."
+    },
+    {
+      "name": "Three Rivers Beverage Co.",
+      "address": "11502 Carolina Place Pkwy",
+      "city": "Pineville",
+      "state": "NC",
+      "zip": "28134",
+      "phone": "+1-704-555-1290",
+      "email": "wholesale@threeriversbev.example",
+      "website": "https://threeriversbev.example",
+      "latitude": 35.0833,
+      "longitude": -80.8923,
+      "specialties": ["beverages"],
+      "description": "Non-alcoholic beverage distributor. Craft sodas, kombuchas, cold-pressed juices, and bottled teas."
+    }
+  ]
+}

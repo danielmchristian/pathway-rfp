@@ -15,6 +15,7 @@ from app.models.ingredient import Ingredient
 from app.models.ingredient_price import IngredientPrice
 from app.models.restaurant import Restaurant
 from app.pipeline.events import get_bus
+from app.schemas.distributors import DiscoveryResponse
 from app.schemas.ingredients import EnrichResponse, IngredientSummaryRow
 from app.schemas.restaurants import (
     DishOut,
@@ -24,6 +25,7 @@ from app.schemas.restaurants import (
     RestaurantCreate,
     RestaurantOut,
 )
+from app.services.distributor_discovery import discover_distributors
 from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
 from app.services.pricing_trends import PriceObservation, compute_trend
@@ -156,6 +158,19 @@ async def enrich_endpoint(restaurant_id: int, session: SessionDep) -> EnrichResp
     except LookupError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return EnrichResponse(**result.to_dict())
+
+
+@router.post("/{restaurant_id}/discover_distributors", response_model=DiscoveryResponse)
+async def discover_distributors_endpoint(
+    restaurant_id: int, session: SessionDep
+) -> DiscoveryResponse:
+    if await session.get(Restaurant, restaurant_id) is None:
+        raise HTTPException(status_code=404, detail=f"restaurant {restaurant_id} not found")
+    try:
+        result = await discover_distributors(restaurant_id=restaurant_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return DiscoveryResponse(**result.to_dict())
 
 
 @router.get(

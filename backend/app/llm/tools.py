@@ -1,5 +1,46 @@
 """Anthropic tool-use schemas. Each constant is ready to pass as a `tools` entry."""
 
+CLASSIFY_DISTRIBUTORS = {
+    "name": "classify_distributor_candidates",
+    "description": (
+        "Decide which of the Google Places candidates are genuine wholesale food "
+        "distributors that a restaurant would actually send an RFP to.\n\n"
+        "ACCEPT examples: wholesale produce distributor, foodservice broadline, "
+        "meat / seafood / dairy wholesaler, specialty foods importer, "
+        "restaurant-supply foodservice company.\n\n"
+        "REJECT examples (return false): retail grocery chains (Harris Teeter, "
+        "Publix, Whole Foods, Trader Joe's), warehouse clubs (Costco, Sam's "
+        "Club, BJ's), retail restaurant-supply stores aimed at consumers, "
+        "convenience stores, fast-food outlets, gas-station markets, "
+        "individual restaurants, farms not operating as distributors, "
+        "non-food businesses caught by a generic 'wholesale' keyword "
+        "(electronics wholesale, beauty supply, etc.).\n\n"
+        "You receive an array of candidates with `index`, `name`, "
+        "`address`, and `types`. For EACH candidate return an object "
+        "`{index, is_wholesale_distributor, reason}`. Keep `reason` "
+        "to one short sentence."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "decisions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "is_wholesale_distributor": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["index", "is_wholesale_distributor", "reason"],
+                },
+            }
+        },
+        "required": ["decisions"],
+    },
+}
+
+
 PICK_FDC_MATCH = {
     "name": "pick_fdc_match",
     "description": (

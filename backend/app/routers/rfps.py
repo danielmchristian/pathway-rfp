@@ -1,8 +1,8 @@
 """Phase 5 — RFP routes.
 
-  POST /api/restaurants/{id}/send_rfps   — kick off compose+send pipeline
-  GET  /api/rfp/{rfp_request_id}         — full audit: request + items + emails
-  GET  /api/restaurants/{id}/rfps        — list of RFPs ordered by created_at desc
+POST /api/restaurants/{id}/send_rfps   — kick off compose+send pipeline
+GET  /api/rfp/{rfp_request_id}         — full audit: request + items + emails
+GET  /api/restaurants/{id}/rfps        — list of RFPs ordered by created_at desc
 """
 
 from __future__ import annotations
@@ -101,11 +101,7 @@ async def get_rfp(rfp_request_id: int, session: SessionDep) -> RfpRequestOut:
     ing_by_id: dict[int, Ingredient] = {}
     if ingredient_ids:
         ing_rows = (
-            (
-                await session.execute(
-                    select(Ingredient).where(Ingredient.id.in_(ingredient_ids))
-                )
-            )
+            (await session.execute(select(Ingredient).where(Ingredient.id.in_(ingredient_ids))))
             .scalars()
             .all()
         )
@@ -115,11 +111,7 @@ async def get_rfp(rfp_request_id: int, session: SessionDep) -> RfpRequestOut:
     dist_by_id: dict[int, Distributor] = {}
     if distributor_ids:
         dist_rows = (
-            (
-                await session.execute(
-                    select(Distributor).where(Distributor.id.in_(distributor_ids))
-                )
-            )
+            (await session.execute(select(Distributor).where(Distributor.id.in_(distributor_ids))))
             .scalars()
             .all()
         )
@@ -129,9 +121,13 @@ async def get_rfp(rfp_request_id: int, session: SessionDep) -> RfpRequestOut:
         RfpItemOut(
             id=i.id,
             ingredient_id=i.ingredient_id,
-            ingredient_name=(ing_by_id.get(i.ingredient_id).name if i.ingredient_id in ing_by_id else None),
+            ingredient_name=(
+                ing_by_id.get(i.ingredient_id).name if i.ingredient_id in ing_by_id else None
+            ),
             normalized_name=(
-                ing_by_id.get(i.ingredient_id).normalized_name if i.ingredient_id in ing_by_id else None
+                ing_by_id.get(i.ingredient_id).normalized_name
+                if i.ingredient_id in ing_by_id
+                else None
             ),
             quantity=i.quantity,
             unit=i.unit,
@@ -142,7 +138,9 @@ async def get_rfp(rfp_request_id: int, session: SessionDep) -> RfpRequestOut:
         RfpEmailOut(
             id=e.id,
             distributor_id=e.distributor_id,
-            distributor_name=(dist_by_id.get(e.distributor_id).name if e.distributor_id in dist_by_id else None),
+            distributor_name=(
+                dist_by_id.get(e.distributor_id).name if e.distributor_id in dist_by_id else None
+            ),
             direction=e.direction.value,
             subject=e.subject,
             body=e.body,
@@ -257,12 +255,8 @@ async def finalize_recommendation(
     return _recommendation_to_response(rec)
 
 
-@view_router.get(
-    "/{rfp_request_id}/recommendation", response_model=RecommendationResponse
-)
-async def get_recommendation(
-    rfp_request_id: int, session: SessionDep
-) -> RecommendationResponse:
+@view_router.get("/{rfp_request_id}/recommendation", response_model=RecommendationResponse)
+async def get_recommendation(rfp_request_id: int, session: SessionDep) -> RecommendationResponse:
     rfp = await session.get(RfpRequest, rfp_request_id)
     if rfp is None:
         raise HTTPException(status_code=404, detail=f"rfp_request {rfp_request_id} not found")
@@ -276,11 +270,7 @@ async def list_quotes(rfp_request_id: int, session: SessionDep) -> QuotesGrouped
     if rfp is None:
         raise HTTPException(status_code=404, detail=f"rfp_request {rfp_request_id} not found")
     quotes = (
-        (
-            await session.execute(
-                select(Quote).where(Quote.rfp_request_id == rfp_request_id)
-            )
-        )
+        (await session.execute(select(Quote).where(Quote.rfp_request_id == rfp_request_id)))
         .scalars()
         .all()
     )
@@ -292,17 +282,13 @@ async def list_quotes(rfp_request_id: int, session: SessionDep) -> QuotesGrouped
     ings = {
         i.id: i.name
         for i in (
-            await session.execute(
-                select(Ingredient).where(Ingredient.id.in_(ingredient_ids))
-            )
+            await session.execute(select(Ingredient).where(Ingredient.id.in_(ingredient_ids)))
         ).scalars()
     }
     dists = {
         d.id: d.name
         for d in (
-            await session.execute(
-                select(Distributor).where(Distributor.id.in_(distributor_ids))
-            )
+            await session.execute(select(Distributor).where(Distributor.id.in_(distributor_ids)))
         ).scalars()
     }
     by_dist: dict[int, list[Quote]] = {}
@@ -336,35 +322,31 @@ async def list_quotes(rfp_request_id: int, session: SessionDep) -> QuotesGrouped
 
 
 @view_router.get("/{rfp_request_id}/comparison", response_model=ComparisonResponse)
-async def get_comparison(
-    rfp_request_id: int, session: SessionDep
-) -> ComparisonResponse:
+async def get_comparison(rfp_request_id: int, session: SessionDep) -> ComparisonResponse:
     rfp = await session.get(RfpRequest, rfp_request_id)
     if rfp is None:
         raise HTTPException(status_code=404, detail=f"rfp_request {rfp_request_id} not found")
 
     items = (
-        await session.execute(
-            select(RfpRequestItem).where(RfpRequestItem.rfp_request_id == rfp_request_id)
+        (
+            await session.execute(
+                select(RfpRequestItem).where(RfpRequestItem.rfp_request_id == rfp_request_id)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     items_by_ing = {i.ingredient_id: i for i in items}
     ing_ids = list(items_by_ing.keys())
     ings: dict[int, Ingredient] = {
         i.id: i
         for i in (
-            await session.execute(
-                select(Ingredient).where(Ingredient.id.in_(ing_ids))
-            )
+            await session.execute(select(Ingredient).where(Ingredient.id.in_(ing_ids)))
         ).scalars()
     }
 
     quotes = (
-        (
-            await session.execute(
-                select(Quote).where(Quote.rfp_request_id == rfp_request_id)
-            )
-        )
+        (await session.execute(select(Quote).where(Quote.rfp_request_id == rfp_request_id)))
         .scalars()
         .all()
     )
@@ -377,9 +359,7 @@ async def get_comparison(
     dists = {
         d.id: d
         for d in (
-            await session.execute(
-                select(Distributor).where(Distributor.id.in_(distributor_ids))
-            )
+            await session.execute(select(Distributor).where(Distributor.id.in_(distributor_ids)))
         ).scalars()
     }
     distributors_out = [{"id": d.id, "name": d.name} for d in dists.values()]

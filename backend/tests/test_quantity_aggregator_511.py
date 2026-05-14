@@ -57,9 +57,7 @@ def test_oz_to_lb_for_proteins() -> None:
 
 
 def test_slices_to_dozen_for_bakery() -> None:
-    qty, unit, note = normalize_to_wholesale_unit(
-        "Bread Slice", Decimal("60"), "slice"
-    )
+    qty, unit, note = normalize_to_wholesale_unit("Bread Slice", Decimal("60"), "slice")
     assert unit == "dozen"
     assert qty == Decimal("5.0")
     assert note and "dozen" in note
@@ -67,9 +65,7 @@ def test_slices_to_dozen_for_bakery() -> None:
 
 def test_ambiguous_unit_falls_through_with_flag() -> None:
     # No rule for "pinch" of saffron — must keep unit + flag.
-    qty, unit, note = normalize_to_wholesale_unit(
-        "Saffron Threads", Decimal("12"), "pinch"
-    )
+    qty, unit, note = normalize_to_wholesale_unit("Saffron Threads", Decimal("12"), "pinch")
     assert unit == "pinch"
     assert qty == Decimal("12")
     assert note and "standard unit" in note
@@ -77,9 +73,7 @@ def test_ambiguous_unit_falls_through_with_flag() -> None:
 
 def test_sanity_ceiling_flags_absurd_lb_output() -> None:
     # 200,000 oz → 12,500 lb — above 10,000 lb ceiling.
-    qty, unit, note = normalize_to_wholesale_unit(
-        "Chicken", Decimal("200000"), "oz"
-    )
+    qty, unit, note = normalize_to_wholesale_unit("Chicken", Decimal("200000"), "oz")
     assert unit == "lb"
     assert qty == Decimal("12500.0")
     assert note and "exceeds" in note

@@ -130,9 +130,7 @@ def _wholesale_quantity_for(item: RfpRequestItem, ingredient_name: str) -> Decim
     basket-cost math matches what the distributor was asked to quote on."""
     if item.quantity is None or item.unit is None:
         return None
-    wq, _unit, _note = normalize_to_wholesale_unit(
-        ingredient_name, item.quantity, item.unit
-    )
+    wq, _unit, _note = normalize_to_wholesale_unit(ingredient_name, item.quantity, item.unit)
     return wq
 
 
@@ -252,9 +250,7 @@ def _score_moq(
         elif weeks >= MOQ_FIT_BAD_WEEKS:
             score = 0.0
         else:
-            score = float(
-                (MOQ_FIT_BAD_WEEKS - weeks) / (MOQ_FIT_BAD_WEEKS - MOQ_FIT_GOOD_WEEKS)
-            )
+            score = float((MOQ_FIT_BAD_WEEKS - weeks) / (MOQ_FIT_BAD_WEEKS - MOQ_FIT_GOOD_WEEKS))
         per_item.append((score, False))
     if not per_item:
         return 0.0, ComponentScore(
@@ -305,9 +301,7 @@ def _score_completeness(quotes: list[Quote]) -> tuple[float, ComponentScore]:
 # ---------------------------------------------------------------------------
 
 
-async def compute_for_rfp(
-    rfp_request_id: int, *, force: bool = False
-) -> RecommendationResult:
+async def compute_for_rfp(rfp_request_id: int, *, force: bool = False) -> RecommendationResult:
     """Compute (or refuse) a recommendation for one RFP.
 
     Returns ready=False if (deadline not passed AND not all distributors
@@ -320,10 +314,14 @@ async def compute_for_rfp(
             raise LookupError(f"rfp_request {rfp_request_id} not found")
 
         items = (
-            await session.execute(
-                select(RfpRequestItem).where(RfpRequestItem.rfp_request_id == rfp_request_id)
+            (
+                await session.execute(
+                    select(RfpRequestItem).where(RfpRequestItem.rfp_request_id == rfp_request_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         items_by_ingredient: dict[int, RfpRequestItem] = {i.ingredient_id: i for i in items}
         ingredient_ids = list(items_by_ingredient.keys())
         ingredient_names: dict[int, str] = {}
@@ -334,10 +332,10 @@ async def compute_for_rfp(
                 ingredient_names[ing.id] = ing.name
 
         all_quotes = (
-            await session.execute(
-                select(Quote).where(Quote.rfp_request_id == rfp_request_id)
-            )
-        ).scalars().all()
+            (await session.execute(select(Quote).where(Quote.rfp_request_id == rfp_request_id)))
+            .scalars()
+            .all()
+        )
 
         # Group quotes by distributor.
         quotes_by_distributor: dict[int, list[Quote]] = {}
@@ -349,19 +347,25 @@ async def compute_for_rfp(
         from app.models.rfp import EmailDirection, RfpEmail
 
         outbound_dists = (
-            await session.execute(
-                select(RfpEmail.distributor_id)
-                .where(
-                    RfpEmail.rfp_request_id == rfp_request_id,
-                    RfpEmail.direction == EmailDirection.out,
-                    RfpEmail.is_followup.is_(False),
+            (
+                await session.execute(
+                    select(RfpEmail.distributor_id)
+                    .where(
+                        RfpEmail.rfp_request_id == rfp_request_id,
+                        RfpEmail.direction == EmailDirection.out,
+                        RfpEmail.is_followup.is_(False),
+                    )
+                    .distinct()
                 )
-                .distinct()
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         expected_distributor_ids = {d for d in outbound_dists if d is not None}
         replied_distributor_ids = set(quotes_by_distributor.keys())
-        all_replied = bool(expected_distributor_ids) and replied_distributor_ids >= expected_distributor_ids
+        all_replied = (
+            bool(expected_distributor_ids) and replied_distributor_ids >= expected_distributor_ids
+        )
 
         deadline_passed = rfp_req.deadline is not None and rfp_req.deadline < datetime.now(UTC)
 
@@ -396,9 +400,7 @@ async def compute_for_rfp(
         incomplete_by_dist: dict[int, bool] = {}
         for dist_id, dist_quotes in quotes_by_distributor.items():
             qbi = {q.ingredient_id: q for q in dist_quotes}
-            basket, excluded, incomplete = _score_cost(
-                qbi, items_by_ingredient, ingredient_names
-            )
+            basket, excluded, incomplete = _score_cost(qbi, items_by_ingredient, ingredient_names)
             baskets[dist_id] = basket
             excluded_by_dist[dist_id] = excluded
             incomplete_by_dist[dist_id] = incomplete
@@ -452,14 +454,15 @@ async def compute_for_rfp(
                     if baskets[dist_id] is not None
                     else "No priced ingredients — cost component scored 0. "
                 )
-                + delivery_comp.note + ". "
-                + moq_comp.note + ". "
-                + completeness_comp.note + "."
+                + delivery_comp.note
+                + ". "
+                + moq_comp.note
+                + ". "
+                + completeness_comp.note
+                + "."
             )
             if excluded_by_dist[dist_id]:
-                rationale += (
-                    f" Excluded from cost: {', '.join(excluded_by_dist[dist_id])}."
-                )
+                rationale += f" Excluded from cost: {', '.join(excluded_by_dist[dist_id])}."
             if incomplete:
                 rationale += (
                     " Basket flagged incomplete_comparison=true; this score "

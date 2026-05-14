@@ -195,13 +195,14 @@ def parse_message(raw: bytes, uid: int, uid_validity: int, mailbox: str) -> Inbo
     msg = email.message_from_bytes(raw)
     headers = {k: v for k, v in msg.items()}
     received_at = datetime.now(UTC)
-    if (date_hdr := msg.get("Date")):
+    if date_hdr := msg.get("Date"):
         import contextlib
 
         with contextlib.suppress(TypeError, ValueError):
             received_at = parsedate_to_datetime(date_hdr) or received_at
     to_addrs = [
-        addr for _name, addr in getaddresses(msg.get_all("To", []) + msg.get_all("Delivered-To", []))
+        addr
+        for _name, addr in getaddresses(msg.get_all("To", []) + msg.get_all("Delivered-To", []))
         if addr
     ]
     from_pair = getaddresses(msg.get_all("From", []))
@@ -309,9 +310,7 @@ async def attribute_reply(reply: InboundReply) -> AttributionResult:
 # ---------------------------------------------------------------------------
 
 
-async def _persist_atomic(
-    reply: InboundReply, attribution: AttributionResult
-) -> int | None:
+async def _persist_atomic(reply: InboundReply, attribution: AttributionResult) -> int | None:
     """Insert rfp_emails + imap_seen_uids in a SINGLE transaction.
 
     Returns the inserted rfp_email_id, or None if the UID was already
@@ -378,16 +377,16 @@ async def poll_inbox() -> InboxPollResult:
     try:
         uid_validity, messages = await asyncio.to_thread(_fetch_unseen_messages_sync)
     except (imaplib.IMAP4.error, OSError, ssl.SSLError, RuntimeError) as exc:
-        log.warning(
-            "inbox.connect.failed", error_type=type(exc).__name__, msg=str(exc)
-        )
+        log.warning("inbox.connect.failed", error_type=type(exc).__name__, msg=str(exc))
         return InboxPollResult(error=f"imap: {type(exc).__name__}: {exc}")
 
     result.uid_validity = uid_validity
 
     for uid, raw in messages:
         try:
-            reply = parse_message(raw, uid=uid, uid_validity=uid_validity, mailbox=settings.imap_mailbox)
+            reply = parse_message(
+                raw, uid=uid, uid_validity=uid_validity, mailbox=settings.imap_mailbox
+            )
         except Exception as exc:  # noqa: BLE001 — defensive
             log.exception("inbox.parse.failed", uid=uid)
             # Still record the UID so we don't loop forever on a bad message.

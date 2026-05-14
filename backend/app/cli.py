@@ -205,9 +205,7 @@ async def _restaurant_id_for_demo() -> int | None:
     """Find the Sweetgreen demo restaurant, if it exists."""
     async with SessionLocal() as session:
         row = (
-            await session.execute(
-                select(Restaurant).where(Restaurant.name == SWEETGREEN["name"])
-            )
+            await session.execute(select(Restaurant).where(Restaurant.name == SWEETGREEN["name"]))
         ).scalar_one_or_none()
         return row.id if row else None
 
@@ -228,9 +226,7 @@ async def _ensure_restaurant() -> int:
 async def _count(model_cls) -> int:
     async with SessionLocal() as session:
         return int(
-            (
-                await session.execute(select(func.count()).select_from(model_cls))
-            ).scalar_one()
+            (await session.execute(select(func.count()).select_from(model_cls))).scalar_one()
         )
 
 
@@ -274,9 +270,7 @@ async def _latest_rfp_for(restaurant_id: int) -> int | None:
     async with SessionLocal() as session:
         return (
             await session.execute(
-                select(func.max(RfpRequest.id)).where(
-                    RfpRequest.restaurant_id == restaurant_id
-                )
+                select(func.max(RfpRequest.id)).where(RfpRequest.restaurant_id == restaurant_id)
             )
         ).scalar_one_or_none()
 
@@ -353,9 +347,7 @@ async def _run_demo(
     else:
         result = await discover_distributors(restaurant_id=restaurant_id)
         summary["discover"] = result.to_dict()
-        summary["messages"].append(
-            f"discover: {result.total_distributors} distributors"
-        )
+        summary["messages"].append(f"discover: {result.total_distributors} distributors")
 
     # ---- 5. Send RFPs --------------------------------------------------
     existing_rfp = await _latest_rfp_for(restaurant_id)
@@ -365,9 +357,7 @@ async def _run_demo(
             "reason": f"rfp_request_id={existing_rfp} already exists",
         }
         summary["rfp_request_id"] = existing_rfp
-        summary["messages"].append(
-            f"send_rfps: skipped (rfp_request_id={existing_rfp} exists)"
-        )
+        summary["messages"].append(f"send_rfps: skipped (rfp_request_id={existing_rfp} exists)")
     else:
         result = await send_rfps(
             restaurant_id=restaurant_id,
@@ -397,9 +387,7 @@ def run_demo_cmd(
         "--reset-data",
         help="TRUNCATE demo content rows first (preserves distributors + restaurants + schema)",
     ),
-    yes: bool = typer.Option(
-        False, "--yes", help="Skip the reset confirmation prompt"
-    ),
+    yes: bool = typer.Option(False, "--yes", help="Skip the reset confirmation prompt"),
 ) -> None:
     """End-to-end demo seed: restaurant → parse → enrich → discover → send_rfps.
 
@@ -435,9 +423,7 @@ def latest_rfp_cmd() -> None:
             raise typer.Exit(1)
         rfp_id = await _latest_rfp_for(rid)
         if rfp_id is None:
-            sys.stderr.write(
-                f"no RFPs for restaurant {rid} — run `make demo` to send some\n"
-            )
+            sys.stderr.write(f"no RFPs for restaurant {rid} — run `make demo` to send some\n")
             raise typer.Exit(1)
         typer.echo(str(rfp_id))
 

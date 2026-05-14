@@ -132,9 +132,7 @@ async def test_one_parse_error_does_not_block_others(db_session, monkeypatch) ->
         "daniel@getserviceledger.com",
     )
 
-    rfp_id, d1_id, d2_id, out1_mid, out2_mid = await _build_two_distributor_fixture(
-        db_session
-    )
+    rfp_id, d1_id, d2_id, out1_mid, out2_mid = await _build_two_distributor_fixture(db_session)
 
     # Three inbound: #0 to d1 (parses fine), #1 to d2 (raises), #2 to d1
     # (parses fine). The third reply goes to d1 again — same outbound
@@ -194,9 +192,7 @@ async def test_one_parse_error_does_not_block_others(db_session, monkeypatch) ->
             raise RuntimeError("simulated parser crash on second email")
         return _claude_response(good_payload)
 
-    fake = SimpleNamespace(
-        messages=SimpleNamespace(create=AsyncMock(side_effect=_flaky_create))
-    )
+    fake = SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(side_effect=_flaky_create)))
 
     with (
         patch(
@@ -224,8 +220,10 @@ async def test_one_parse_error_does_not_block_others(db_session, monkeypatch) ->
 
     # 2 successful quote rows inserted.
     quotes = (
-        await db_session.execute(select(Quote).where(Quote.rfp_request_id == rfp_id))
-    ).scalars().all()
+        (await db_session.execute(select(Quote).where(Quote.rfp_request_id == rfp_id)))
+        .scalars()
+        .all()
+    )
     assert len(quotes) == 2
 
 
@@ -235,9 +233,7 @@ async def test_one_parse_error_does_not_block_others(db_session, monkeypatch) ->
 
 
 @pytest.mark.asyncio
-async def test_pipeline_handles_unattributed_alongside_attributed(
-    db_session, monkeypatch
-) -> None:
+async def test_pipeline_handles_unattributed_alongside_attributed(db_session, monkeypatch) -> None:
     monkeypatch.setattr("app.services.inbox_monitor.settings.imap_user", "u")
     monkeypatch.setattr("app.services.inbox_monitor.settings.imap_password", "p")
     rfp_id, d1_id, _, out1_mid, _ = await _build_two_distributor_fixture(db_session)

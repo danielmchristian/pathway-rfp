@@ -66,9 +66,7 @@ class QuoteCollectionResult:
             "parse_results": [p.to_dict() for p in self.parse_results],
             "parse_failed_email_ids": list(self.parse_failed_email_ids),
             "followups": [f.to_dict() for f in self.followups],
-            "recommendation": (
-                self.recommendation.to_dict() if self.recommendation else None
-            ),
+            "recommendation": (self.recommendation.to_dict() if self.recommendation else None),
         }
 
 
@@ -95,12 +93,16 @@ async def _incomplete_quotes_for(
         if email_row.rfp_request_id is None or email_row.distributor_id is None:
             return None, None, []
         quotes = (
-            await session.execute(
-                select(Quote).where(
-                    Quote.source_email_id == rfp_email_id,
+            (
+                await session.execute(
+                    select(Quote).where(
+                        Quote.source_email_id == rfp_email_id,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         incomplete = [q for q in quotes if q.missing_fields]
         return email_row.rfp_request_id, email_row.distributor_id, incomplete
 
@@ -233,9 +235,7 @@ async def poll_and_process(
             status="complete",
             payload={
                 "ready": rec.ready,
-                "pick_distributor_id": (
-                    rec.pick.distributor_id if rec.pick else None
-                ),
+                "pick_distributor_id": (rec.pick.distributor_id if rec.pick else None),
                 "score": rec.pick.score if rec.pick else None,
                 "not_ready_reason": rec.not_ready_reason,
             },

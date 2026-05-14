@@ -30,9 +30,7 @@ def test_demo_recipient_plus_addresses() -> None:
 async def test_send_success_persists_message_id_recipient_and_resend_id(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.services.email_sender.settings.resend_api_key", "test-key"
-    )
+    monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test-key")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
         "procurement@getserviceledger.com",
@@ -46,6 +44,7 @@ async def test_send_success_persists_message_id_recipient_and_resend_id(
 
     def _resend_handler(request: httpx.Request) -> httpx.Response:
         import json
+
         captured_body.update(json.loads(request.content))
         return httpx.Response(200, json={"id": "resend-uuid-abc"})
 
@@ -82,9 +81,7 @@ async def test_send_success_persists_message_id_recipient_and_resend_id(
 
     # Verify what we put on the wire
     assert captured_body["from"] == "procurement@getserviceledger.com"
-    assert captured_body["to"] == [
-        "daniel+carolina-fresh-produce-co@getserviceledger.com"
-    ]
+    assert captured_body["to"] == ["daniel+carolina-fresh-produce-co@getserviceledger.com"]
     assert captured_body["reply_to"] == "procurement@getserviceledger.com"
     assert captured_body["subject"] == "[RFP-99] Ingredient quote request"
     assert captured_body["text"] == "Hello — please quote."
@@ -93,9 +90,7 @@ async def test_send_success_persists_message_id_recipient_and_resend_id(
 
 @pytest.mark.asyncio
 async def test_send_422_persists_failed_row_does_not_raise(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.services.email_sender.settings.resend_api_key", "test-key"
-    )
+    monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test-key")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
         "procurement@getserviceledger.com",
@@ -138,9 +133,7 @@ async def test_send_422_persists_failed_row_does_not_raise(monkeypatch) -> None:
 async def test_send_with_missing_api_key_records_failure_does_not_raise(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(
-        "app.services.email_sender.settings.resend_api_key", ""
-    )
+    monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
         "procurement@getserviceledger.com",

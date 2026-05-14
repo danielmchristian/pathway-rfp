@@ -72,8 +72,7 @@ def _build_ingredient_summary(ingredients: list[IngredientVolume]) -> str:
         annotations: list[str] = []
         if v.variant_count > 1:
             annotations.append(
-                f"merged {v.variant_count} menu variants across "
-                f"{v.dishes_used} dishes"
+                f"merged {v.variant_count} menu variants across " f"{v.dishes_used} dishes"
             )
         elif v.dishes_used > 1:
             annotations.append(f"used across {v.dishes_used} dishes")
@@ -92,9 +91,9 @@ def _build_user_message(
     deadline: datetime,
     covers_per_dish_per_week: int,
 ) -> str:
-    location = ", ".join(
-        p for p in (restaurant.city, restaurant.state) if p
-    ) or (restaurant.address or "")
+    location = ", ".join(p for p in (restaurant.city, restaurant.state) if p) or (
+        restaurant.address or ""
+    )
     return (
         f"Compose an RFP email FROM the restaurant procurement team "
         f"TO the distributor below.\n\n"

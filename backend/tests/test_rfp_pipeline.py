@@ -143,14 +143,10 @@ async def _build_fixture(db_session) -> int:
 
 
 @pytest.mark.asyncio
-async def test_pipeline_emails_only_distributors_above_min_matches(
-    db_session, monkeypatch
-) -> None:
+async def test_pipeline_emails_only_distributors_above_min_matches(db_session, monkeypatch) -> None:
     restaurant_id = await _build_fixture(db_session)
 
-    monkeypatch.setattr(
-        "app.services.email_sender.settings.resend_api_key", "test-key"
-    )
+    monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test-key")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
         "procurement@getserviceledger.com",
@@ -164,10 +160,9 @@ async def test_pipeline_emails_only_distributors_above_min_matches(
 
     def _resend_handler(request: httpx.Request) -> httpx.Response:
         import json
+
         sent_payloads.append(json.loads(request.content))
-        return httpx.Response(
-            200, json={"id": f"resend-{len(sent_payloads)}"}
-        )
+        return httpx.Response(200, json={"id": f"resend-{len(sent_payloads)}"})
 
     fake_claude = SimpleNamespace(
         messages=SimpleNamespace(
@@ -197,9 +192,7 @@ async def test_pipeline_emails_only_distributors_above_min_matches(
     assert result.emails_sent == 1
     assert result.emails_failed == 0
     assert len(sent_payloads) == 1
-    assert sent_payloads[0]["to"] == [
-        "daniel+carolina-fresh-produce@getserviceledger.com"
-    ]
+    assert sent_payloads[0]["to"] == ["daniel+carolina-fresh-produce@getserviceledger.com"]
     # Subject prefix is deterministic
     assert sent_payloads[0]["subject"].startswith(f"[RFP-{result.rfp_request_id}]")
 
@@ -208,9 +201,7 @@ async def test_pipeline_emails_only_distributors_above_min_matches(
     items = (
         (
             await db_session.execute(
-                select(RfpRequestItem).where(
-                    RfpRequestItem.rfp_request_id == result.rfp_request_id
-                )
+                select(RfpRequestItem).where(RfpRequestItem.rfp_request_id == result.rfp_request_id)
             )
         )
         .scalars()
@@ -220,15 +211,11 @@ async def test_pipeline_emails_only_distributors_above_min_matches(
     assert result.items_count == 2
 
     # Email row was persisted with our minted Message-ID and demo recipient.
-    emails = (
-        (await db_session.execute(select(RfpEmail))).scalars().all()
-    )
+    emails = (await db_session.execute(select(RfpEmail))).scalars().all()
     assert len(emails) == 1
     assert emails[0].direction == EmailDirection.out
     assert emails[0].status == EmailStatus.sent
-    assert emails[0].recipient_actual == (
-        "daniel+carolina-fresh-produce@getserviceledger.com"
-    )
+    assert emails[0].recipient_actual == ("daniel+carolina-fresh-produce@getserviceledger.com")
     assert emails[0].recipient_nominal == "orders@carolinafresh.example"
     assert emails[0].message_id.startswith(f"<rfp-{result.rfp_request_id}-")
 
@@ -238,14 +225,10 @@ async def test_pipeline_emails_only_distributors_above_min_matches(
 
 
 @pytest.mark.asyncio
-async def test_pipeline_continues_when_one_resend_call_fails(
-    db_session, monkeypatch
-) -> None:
+async def test_pipeline_continues_when_one_resend_call_fails(db_session, monkeypatch) -> None:
     restaurant_id = await _build_fixture(db_session)
 
-    monkeypatch.setattr(
-        "app.services.email_sender.settings.resend_api_key", "test-key"
-    )
+    monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test-key")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
         "procurement@getserviceledger.com",
@@ -256,9 +239,7 @@ async def test_pipeline_continues_when_one_resend_call_fails(
     )
 
     fake_claude = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=AsyncMock(side_effect=lambda **kw: _fake_compose())
-        )
+        messages=SimpleNamespace(create=AsyncMock(side_effect=lambda **kw: _fake_compose()))
     )
 
     # Lower min_matches to 1 so meat distributor (chicken match) is included.

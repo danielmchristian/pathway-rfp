@@ -83,14 +83,33 @@ _PLURAL_RE = re.compile(r"(?<=\w\w)(es|s)$")
 #   3. Generic unit rule (e.g. any oz → lb).
 #   4. Fallback: keep original unit, flag with `conversion_note`.
 
-HERB_TOKENS = ("basil", "cilantro", "parsley", "mint", "oregano", "thyme", "rosemary", "dill", "sage", "chive")
+HERB_TOKENS = (
+    "basil",
+    "cilantro",
+    "parsley",
+    "mint",
+    "oregano",
+    "thyme",
+    "rosemary",
+    "dill",
+    "sage",
+    "chive",
+)
 LEAFY_TOKENS = ("kale", "romaine", "spinach", "arugula", "lettuce", "spring mix")
 GRAIN_TOKENS = ("rice", "quinoa", "farro", "oats", "barley", "couscous")
 LEGUME_TOKENS = ("chickpea", "black bean", "lentil", "white bean", "pinto")
 TOMATO_TOKENS = ("tomato", "tomatoes")
 PROTEIN_TOKENS = (
-    "chicken", "steak", "beef", "pork", "salmon", "tuna", "shrimp",
-    "tofu", "tempeh", "turkey",
+    "chicken",
+    "steak",
+    "beef",
+    "pork",
+    "salmon",
+    "tuna",
+    "shrimp",
+    "tofu",
+    "tempeh",
+    "turkey",
 )
 BREAD_TOKENS = ("bread", "bagel", "pita", "tortilla", "naan", "slice")
 LIQUID_TOKENS = ("kombucha", "lemonade", "juice", "tea", "broth", "stock", "milk", "cream", "oil")
@@ -99,7 +118,7 @@ LIQUID_TOKENS = ("kombucha", "lemonade", "juice", "tea", "broth", "stock", "milk
 # absurd-ceiling or below the rounded-to-zero floor, the rule fires but
 # conversion_note flags the row.
 SANITY_CEILINGS_LB = Decimal("10000")  # >10,000 lb/wk is suspicious for a single ingredient
-SANITY_CEILINGS_GAL = Decimal("1000")   # >1,000 gal/wk for one liquid item
+SANITY_CEILINGS_GAL = Decimal("1000")  # >1,000 gal/wk for one liquid item
 SANITY_CEILING_GENERIC = Decimal("50000")
 SANITY_FLOOR = Decimal("0.01")  # below this, we flag (likely conversion-factor error)
 
@@ -225,7 +244,18 @@ def _resolve_rule(
         return dozen, "dozen", "converted from individual pieces (12 per dozen)"
 
     # 9. Already wholesale-friendly: ea, each, bunch, head, case, lb, gallon, dozen.
-    if raw_unit in ("ea", "each", "bunch", "bunches", "head", "case", "lb", "lbs", "pound", "pounds"):
+    if raw_unit in (
+        "ea",
+        "each",
+        "bunch",
+        "bunches",
+        "head",
+        "case",
+        "lb",
+        "lbs",
+        "pound",
+        "pounds",
+    ):
         return qty, raw_unit, None
     if raw_unit in ("gallon", "gallons", "gal"):
         return qty, "gallon", None
@@ -269,9 +299,7 @@ def _check_sanity(qty: Decimal, unit: str) -> str | None:
 def apply_wholesale_conversion(volumes: list[IngredientVolume]) -> None:
     """Mutate `volumes` in place, populating wholesale_quantity/unit/note."""
     for v in volumes:
-        wq, wu, note = normalize_to_wholesale_unit(
-            v.ingredient_name, v.weekly_quantity, v.unit
-        )
+        wq, wu, note = normalize_to_wholesale_unit(v.ingredient_name, v.weekly_quantity, v.unit)
         v.wholesale_quantity = wq
         v.wholesale_unit = wu
         v.conversion_note = note
@@ -363,9 +391,7 @@ async def aggregate_weekly_volumes(
     for di, ing, _dish in rows:
         per_serving = di.quantity
         per_week = (
-            (per_serving * Decimal(covers_per_dish_per_week))
-            if per_serving is not None
-            else None
+            (per_serving * Decimal(covers_per_dish_per_week)) if per_serving is not None else None
         )
         unit = di.unit
         entry = by_ingredient.get(ing.id)

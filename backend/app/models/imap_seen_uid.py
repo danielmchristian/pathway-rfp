@@ -16,9 +16,7 @@ from app.models.base import Base
 
 class ImapSeenUid(Base):
     __tablename__ = "imap_seen_uids"
-    __table_args__ = (
-        UniqueConstraint("mailbox", "uid_validity", "uid", name="uq_imap_seen_uid"),
-    )
+    __table_args__ = (UniqueConstraint("mailbox", "uid_validity", "uid", name="uq_imap_seen_uid"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     mailbox: Mapped[str] = mapped_column(String(120), nullable=False)

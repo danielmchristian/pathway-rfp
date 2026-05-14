@@ -181,7 +181,9 @@ async def maybe_send_followup(
                 resend_id=None,
                 missing_fields_asked=[],
             )
-        rfp_req = await session.get(type(rfp_email_parent).rfp_request.property.mapper.class_, rfp_request_id)
+        rfp_req = await session.get(
+            type(rfp_email_parent).rfp_request.property.mapper.class_, rfp_request_id
+        )
         restaurant = await session.get(Restaurant, rfp_req.restaurant_id) if rfp_req else None
         restaurant_name = restaurant.name if restaurant else "our procurement team"
 
@@ -216,10 +218,7 @@ async def maybe_send_followup(
     # for follow-ups in the raw inbox.
     _, _, domain = settings.rfp_from_email.partition("@")
     domain = domain or "getserviceledger.com"
-    message_id = (
-        f"<rfp-{rfp_request_id}-{distributor_id}-fu1-"
-        f"{secrets.token_hex(4)}@{domain}>"
-    )
+    message_id = f"<rfp-{rfp_request_id}-{distributor_id}-fu1-" f"{secrets.token_hex(4)}@{domain}>"
     actual = _demo_recipient(distributor.name, settings.rfp_demo_inbox)
     nominal = distributor.email
     subject = f"Re: [RFP-{rfp_request_id}] {subject_tail}"
@@ -287,9 +286,11 @@ async def maybe_send_followup(
                     recipient_actual=actual,
                     recipient_nominal=nominal,
                     resend_id=resend_id,
-                    raw_payload={"followup_for_email_id": parent_inbound_email.id,
-                                  "send_error": send_error,
-                                  "missing_field_lines": asked_lines},
+                    raw_payload={
+                        "followup_for_email_id": parent_inbound_email.id,
+                        "send_error": send_error,
+                        "missing_field_lines": asked_lines,
+                    },
                     is_followup=True,
                 )
                 session.add(row)

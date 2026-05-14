@@ -58,7 +58,9 @@ def _raw_email(
     return ("\r\n".join(headers) + "\r\n\r\n" + body).encode("utf-8")
 
 
-async def _seed_outbound(db_session, message_id: str, distributor_name: str = "Carolina Fresh Produce Co.") -> int:
+async def _seed_outbound(
+    db_session, message_id: str, distributor_name: str = "Carolina Fresh Produce Co."
+) -> int:
     """Fixture: a restaurant, a distributor, an RFP, and one outbound email."""
     r = Restaurant(name="Sweetgreen Test", city="Charlotte", state="NC")
     d = Distributor(
@@ -149,9 +151,7 @@ async def test_attribute_subject_prefix_to_rfp_only(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_unattributed_reply_logged_not_dropped(
-    db_session, monkeypatch
-) -> None:
+async def test_unattributed_reply_logged_not_dropped(db_session, monkeypatch) -> None:
     """F2: a reply with no Message-ID / no plus-tag / no [RFP-id] subject
     MUST persist with status='unattributed', rfp_request_id=NULL,
     distributor_id=NULL — never raise, never silently drop."""
@@ -179,9 +179,7 @@ async def test_unattributed_reply_logged_not_dropped(
     assert result.attributed_count == 0
 
     row = (
-        await db_session.execute(
-            select(RfpEmail).where(RfpEmail.direction == EmailDirection.in_)
-        )
+        await db_session.execute(select(RfpEmail).where(RfpEmail.direction == EmailDirection.in_))
     ).scalar_one()
     assert row.attribution_method == ATTR_UNATTRIBUTED
     assert row.rfp_request_id is None
@@ -218,15 +216,15 @@ async def test_idempotent_uid_processing(db_session, monkeypatch) -> None:
     assert second.duplicate_uids_skipped == 1
 
     emails = (
-        await db_session.execute(
-            select(RfpEmail).where(RfpEmail.direction == EmailDirection.in_)
-        )
-    ).scalars().all()
+        (await db_session.execute(select(RfpEmail).where(RfpEmail.direction == EmailDirection.in_)))
+        .scalars()
+        .all()
+    )
     assert len(emails) == 1
 
     uids = (
-        await db_session.execute(select(ImapSeenUid).where(ImapSeenUid.uid == 99))
-    ).scalars().all()
+        (await db_session.execute(select(ImapSeenUid).where(ImapSeenUid.uid == 99))).scalars().all()
+    )
     assert len(uids) == 1
 
 

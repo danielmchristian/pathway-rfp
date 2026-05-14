@@ -99,9 +99,7 @@ async def _build_incomplete_fixture(db_session) -> tuple[int, int, RfpEmail, lis
 
 
 @pytest.mark.asyncio
-async def test_followup_sends_once_on_first_incomplete_reply(
-    db_session, monkeypatch
-) -> None:
+async def test_followup_sends_once_on_first_incomplete_reply(db_session, monkeypatch) -> None:
     monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test")
     monkeypatch.setattr(
         "app.services.email_sender.settings.rfp_from_email",
@@ -120,7 +118,10 @@ async def test_followup_sends_once_on_first_incomplete_reply(
     with (
         patch("app.services.followup_agent.get_client", return_value=fake),
         patch("app.services.followup_agent.settings.resend_api_key", "test"),
-        patch("app.services.followup_agent.settings.rfp_from_email", "procurement@getserviceledger.com"),
+        patch(
+            "app.services.followup_agent.settings.rfp_from_email",
+            "procurement@getserviceledger.com",
+        ),
         patch("app.services.followup_agent.settings.rfp_demo_inbox", "daniel@getserviceledger.com"),
         respx.mock(assert_all_called=True) as router,
     ):
@@ -266,9 +267,10 @@ async def test_db_partial_unique_index_directly_blocks_second_followup(
     with pytest.raises(IntegrityError) as exc_info:
         await db_session.commit()
     # The specific constraint that fired is the partial unique index.
-    assert "ix_one_followup_per_dist_rfp" in str(exc_info.value).lower() or "duplicate" in str(
-        exc_info.value
-    ).lower()
+    assert (
+        "ix_one_followup_per_dist_rfp" in str(exc_info.value).lower()
+        or "duplicate" in str(exc_info.value).lower()
+    )
     await db_session.rollback()
 
 
@@ -332,7 +334,10 @@ async def test_two_consecutive_incomplete_replies_only_trigger_one_followup(
     with (
         patch("app.services.followup_agent.get_client", return_value=fake),
         patch("app.services.followup_agent.settings.resend_api_key", "test"),
-        patch("app.services.followup_agent.settings.rfp_from_email", "procurement@getserviceledger.com"),
+        patch(
+            "app.services.followup_agent.settings.rfp_from_email",
+            "procurement@getserviceledger.com",
+        ),
         patch("app.services.followup_agent.settings.rfp_demo_inbox", "daniel@getserviceledger.com"),
         respx.mock(assert_all_called=False) as router,
     ):
@@ -398,20 +403,19 @@ async def test_no_recursive_sending(db_session, monkeypatch) -> None:
         compose_calls += 1
         return _fake_compose()
 
-    fake = SimpleNamespace(
-        messages=SimpleNamespace(create=AsyncMock(side_effect=_counted_create))
-    )
+    fake = SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(side_effect=_counted_create)))
 
     with (
         patch("app.services.followup_agent.get_client", return_value=fake),
         patch("app.services.followup_agent.settings.resend_api_key", "test"),
-        patch("app.services.followup_agent.settings.rfp_from_email", "procurement@getserviceledger.com"),
+        patch(
+            "app.services.followup_agent.settings.rfp_from_email",
+            "procurement@getserviceledger.com",
+        ),
         patch("app.services.followup_agent.settings.rfp_demo_inbox", "daniel@getserviceledger.com"),
         respx.mock(assert_all_called=True) as router,
     ):
-        route = router.post(RESEND_URL).mock(
-            return_value=httpx.Response(200, json={"id": "fu-1"})
-        )
+        route = router.post(RESEND_URL).mock(return_value=httpx.Response(200, json={"id": "fu-1"}))
         result = await maybe_send_followup(
             rfp_request_id=rfp_id,
             distributor_id=dist_id,

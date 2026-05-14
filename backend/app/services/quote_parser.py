@@ -152,21 +152,21 @@ async def parse_quote_email(*, rfp_email_id: int) -> ParsedQuotesResult:
         # to generate spurious "missing field" entries for items the
         # distributor was never asked about).
         union_rows = (
-            await session.execute(
-                select(Ingredient)
-                .join(RfpRequestItem, RfpRequestItem.ingredient_id == Ingredient.id)
-                .where(RfpRequestItem.rfp_request_id == email_row.rfp_request_id)
+            (
+                await session.execute(
+                    select(Ingredient)
+                    .join(RfpRequestItem, RfpRequestItem.ingredient_id == Ingredient.id)
+                    .where(RfpRequestItem.rfp_request_id == email_row.rfp_request_id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         asked_rows: list[Ingredient]
         if email_row.distributor_id is not None:
             distributor = await session.get(Distributor, email_row.distributor_id)
             d_specs = {s.lower() for s in (distributor.specialties or [])} if distributor else set()
-            asked_rows = [
-                ing
-                for ing in union_rows
-                if specialty_tags_for(ing) & d_specs
-            ]
+            asked_rows = [ing for ing in union_rows if specialty_tags_for(ing) & d_specs]
             # Defensive: if scoping by tags somehow yields empty, fall
             # back to the full union — better to over-ask Claude than
             # silently lose the parse.

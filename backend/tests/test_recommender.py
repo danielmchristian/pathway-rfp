@@ -32,12 +32,8 @@ async def _build_rfp_with_two_distributors(
     """Restaurant + 2 produce distributors + an RFP for kale + tomato.
     Returns (rfp_id, dist_produce_a, dist_produce_b, kale_id, tomato_id)."""
     r = Restaurant(name="Test", city="Charlotte", state="NC")
-    da = Distributor(
-        name="Produce A", specialties=["produce"], source="seed", email="a@x.example"
-    )
-    db = Distributor(
-        name="Produce B", specialties=["produce"], source="seed", email="b@x.example"
-    )
+    da = Distributor(name="Produce A", specialties=["produce"], source="seed", email="a@x.example")
+    db = Distributor(name="Produce B", specialties=["produce"], source="seed", email="b@x.example")
     kale = Ingredient(name="Kale", normalized_name="kale", category=None)
     tom = Ingredient(name="Tomatoes", normalized_name="tomatoes", category=None)
     db_session.add_all([r, da, db, kale, tom])
@@ -95,9 +91,7 @@ async def _build_rfp_with_two_distributors(
 async def test_null_price_does_not_crash_and_excludes_from_basket(
     db_session,
 ) -> None:
-    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(
-        db_session
-    )
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
 
     # Produce A: complete quote on kale, null price on tomato.
     db_session.add_all(
@@ -178,9 +172,7 @@ async def test_null_price_does_not_crash_and_excludes_from_basket(
 async def test_tbd_quantity_handled_explicitly(db_session) -> None:
     """TBD-quantity items: quote persists with a price; recommender
     excludes from basket sum AND flags incomplete_comparison."""
-    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(
-        db_session
-    )
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
 
     # Make tomato's RFP item TBD-quantity (NULL).
     from sqlalchemy import update
@@ -231,9 +223,7 @@ async def test_tbd_quantity_handled_explicitly(db_session) -> None:
     a = next(r for r in rec.ranked if r.distributor_id == da_id)
     # The TBD ingredient is excluded from the basket sum AND incomplete is set.
     assert a.incomplete_comparison is True
-    assert any(
-        "TBD" in e or "tomato" in e.lower() for e in a.excluded_for_cost
-    )
+    assert any("TBD" in e or "tomato" in e.lower() for e in a.excluded_for_cost)
     # Did not crash on the TBD path.
     assert isinstance(a.score, float)
 
@@ -248,9 +238,7 @@ async def test_delivery_null_scored_worst_case_not_excluded(db_session) -> None:
     """Asymmetric rule: a distributor refusing to commit to delivery_days
     is scored 0.0 — not absent, not excluded. The rationale text must
     say this explicitly so the writeup can defend the choice."""
-    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(
-        db_session
-    )
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
 
     db_session.add_all(
         [
@@ -332,9 +320,7 @@ async def test_delivery_null_scored_worst_case_not_excluded(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_partial_basket_coverage_surfaced_in_rationale(db_session) -> None:
-    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(
-        db_session
-    )
+    rfp_id, da_id, db_id, kale_id, tom_id = await _build_rfp_with_two_distributors(db_session)
     # A quotes only kale. B quotes both.
     db_session.add_all(
         [

@@ -28,9 +28,7 @@ from app.services.quote_parser import parse_quote_email
 
 def _claude_response(payload: dict):
     return SimpleNamespace(
-        content=[
-            SimpleNamespace(type="tool_use", name="parse_quote", input=payload)
-        ],
+        content=[SimpleNamespace(type="tool_use", name="parse_quote", input=payload)],
         stop_reason="tool_use",
         usage=SimpleNamespace(
             input_tokens=300,
@@ -243,8 +241,10 @@ async def test_off_topic_reply_persists_empty_quotes(db_session) -> None:
     assert result.quotes_inserted == 0
     assert result.note == "vacation auto-responder"
     n = (
-        await db_session.execute(select(Quote).where(Quote.source_email_id == email_id))
-    ).scalars().all()
+        (await db_session.execute(select(Quote).where(Quote.source_email_id == email_id)))
+        .scalars()
+        .all()
+    )
     assert n == []
 
 

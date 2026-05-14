@@ -31,8 +31,10 @@ def _fake_compose(subject_tail="Quote request", body="Body content."):
         ],
         stop_reason="tool_use",
         usage=SimpleNamespace(
-            input_tokens=400, output_tokens=200,
-            cache_creation_input_tokens=0, cache_read_input_tokens=0,
+            input_tokens=400,
+            output_tokens=200,
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
         ),
     )
 
@@ -88,11 +90,17 @@ async def _build_fixture_with_composite_and_leak_traps(db_session) -> int:
     db_session.add_all(
         [
             DishIngredient(dish_id=d1.id, ingredient_id=kale.id, quantity=Decimal("4"), unit="cup"),
-            DishIngredient(dish_id=d1.id, ingredient_id=tomato.id, quantity=Decimal("2"), unit="cup"),
-            DishIngredient(dish_id=d1.id, ingredient_id=sauce.id, quantity=Decimal("3"), unit="tbsp"),
+            DishIngredient(
+                dish_id=d1.id, ingredient_id=tomato.id, quantity=Decimal("2"), unit="cup"
+            ),
+            DishIngredient(
+                dish_id=d1.id, ingredient_id=sauce.id, quantity=Decimal("3"), unit="tbsp"
+            ),
             DishIngredient(dish_id=d2.id, ingredient_id=steak.id, quantity=Decimal("6"), unit="oz"),
             DishIngredient(dish_id=d2.id, ingredient_id=kale.id, quantity=Decimal("3"), unit="cup"),
-            DishIngredient(dish_id=d3.id, ingredient_id=kombucha.id, quantity=Decimal("16"), unit="fl oz"),
+            DishIngredient(
+                dish_id=d3.id, ingredient_id=kombucha.id, quantity=Decimal("16"), unit="fl oz"
+            ),
         ]
     )
     await db_session.commit()
@@ -130,9 +138,7 @@ async def _build_fixture_with_composite_and_leak_traps(db_session) -> int:
 
 
 @pytest.mark.asyncio
-async def test_unassigned_includes_composite_and_no_leaks(
-    db_session, monkeypatch
-) -> None:
+async def test_unassigned_includes_composite_and_no_leaks(db_session, monkeypatch) -> None:
     restaurant_id = await _build_fixture_with_composite_and_leak_traps(db_session)
     monkeypatch.setattr("app.services.email_sender.settings.resend_api_key", "test")
     monkeypatch.setattr(
@@ -148,13 +154,12 @@ async def test_unassigned_includes_composite_and_no_leaks(
 
     def _handler(req: httpx.Request) -> httpx.Response:
         import json
+
         captured.append(json.loads(req.content))
         return httpx.Response(200, json={"id": f"resend-{len(captured)}"})
 
     fake_claude = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=AsyncMock(side_effect=lambda **kw: _fake_compose())
-        )
+        messages=SimpleNamespace(create=AsyncMock(side_effect=lambda **kw: _fake_compose()))
     )
 
     # With min_matches=1 — even a single legit match per distributor counts.
@@ -180,7 +185,8 @@ async def test_unassigned_includes_composite_and_no_leaks(
         # Easier proxy: by name, validate from rfp_emails body NOT containing
         # leak items.
         body_text = next(
-            payload["text"] for payload in captured
+            payload["text"]
+            for payload in captured
             if payload["to"][0].endswith(
                 f"+{outcome.distributor_name.lower().replace(' ', '-')}@getserviceledger.com"
             )
@@ -194,9 +200,7 @@ async def test_unassigned_includes_composite_and_no_leaks(
 
 
 @pytest.mark.asyncio
-async def test_distributor_drops_when_only_leak_matches(
-    db_session, monkeypatch
-) -> None:
+async def test_distributor_drops_when_only_leak_matches(db_session, monkeypatch) -> None:
     """If a distributor's only matches were leak-driven, it falls below
     min_matches after tightening and gets dropped."""
     r = Restaurant(name="Tiny", city="Charlotte", state="NC")
@@ -204,9 +208,7 @@ async def test_distributor_drops_when_only_leak_matches(
     await db_session.commit()
     await db_session.refresh(r)
 
-    steak = Ingredient(
-        name="Caramelized Garlic Steak", normalized_name="steak", category=None
-    )
+    steak = Ingredient(name="Caramelized Garlic Steak", normalized_name="steak", category=None)
     db_session.add(steak)
     await db_session.commit()
     await db_session.refresh(steak)
@@ -249,9 +251,7 @@ async def test_distributor_drops_when_only_leak_matches(
     )
 
     fake_claude = SimpleNamespace(
-        messages=SimpleNamespace(
-            create=AsyncMock(side_effect=lambda **kw: _fake_compose())
-        )
+        messages=SimpleNamespace(create=AsyncMock(side_effect=lambda **kw: _fake_compose()))
     )
     with (
         patch("app.services.rfp_composer.get_client", return_value=fake_claude),
@@ -272,6 +272,7 @@ async def test_distributor_drops_when_only_leak_matches(
 # for a steak DOES NOT include "beverages".
 def test_specialty_invariant_steak_not_beverage() -> None:
     from app.models.ingredient import Ingredient as Ing
+
     tags = specialty_tags_for(
         Ing(id=1, name="Caramelized Garlic Steak", normalized_name="steak", category=None)
     )

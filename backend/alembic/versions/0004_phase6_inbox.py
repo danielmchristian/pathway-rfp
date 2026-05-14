@@ -88,9 +88,7 @@ def upgrade() -> None:
             sa.ForeignKey("rfp_emails.id", ondelete="SET NULL"),
             nullable=True,
         ),
-        sa.UniqueConstraint(
-            "mailbox", "uid_validity", "uid", name="uq_imap_seen_uid"
-        ),
+        sa.UniqueConstraint("mailbox", "uid_validity", "uid", name="uq_imap_seen_uid"),
     )
     op.create_index(
         "ix_imap_seen_uids_mailbox_uid",

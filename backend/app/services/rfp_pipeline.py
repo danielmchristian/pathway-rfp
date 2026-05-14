@@ -144,9 +144,7 @@ async def send_rfps(
         if restaurant is None:
             raise LookupError(f"restaurant {restaurant_id} not found")
 
-        distributors = (
-            (await session.execute(select(Distributor))).scalars().all()
-        )
+        distributors = (await session.execute(select(Distributor))).scalars().all()
 
         ingredient_rows = (
             (
@@ -193,8 +191,7 @@ async def send_rfps(
     # tightened matcher) falls below min_matches. Build the actual scope
     # map for every candidate so we don't double-compute later.
     candidate_distributors = [
-        next(d for d in distributors if d.id == s.distributor_id)
-        for s in scored
+        next(d for d in distributors if d.id == s.distributor_id) for s in scored
     ]
     scope_by_distributor: dict[int, list[IngredientVolume]] = {}
     for d in candidate_distributors:
@@ -411,9 +408,9 @@ async def send_rfps(
                     distributor_name=d.name,
                     matched_ingredient_count=s.matched_ingredient_count,
                     ingredients_emailed=len(scoped),
-                    status=send.rfp_email.status.value if isinstance(
-                        send.rfp_email.status, EmailStatus
-                    ) else str(send.rfp_email.status),
+                    status=send.rfp_email.status.value
+                    if isinstance(send.rfp_email.status, EmailStatus)
+                    else str(send.rfp_email.status),
                     message_id=send.rfp_email.message_id,
                     resend_id=send.rfp_email.resend_id,
                     recipient_actual=send.rfp_email.recipient_actual,

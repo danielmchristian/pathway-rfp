@@ -15,6 +15,7 @@ from app.models.restaurant import Restaurant
 from app.services.distributor_discovery import discover_distributors
 from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
+from app.services.rfp_pipeline import send_rfps
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -50,7 +51,7 @@ def seed_sweetgreen() -> None:
             return r.id
 
     rid = asyncio.run(_run())
-    typer.echo(json.dumps({"restaurant_id": rid, **SWEETGREEN}))
+    typer.echo(json.dumps({"restaurant_id": rid, **SWEETGREEN}, default=str))
 
 
 @app.command()
@@ -89,6 +90,27 @@ def discover(
     async def _run() -> None:
         result = await discover_distributors(restaurant_id=restaurant_id)
         typer.echo(json.dumps(result.to_dict()))
+
+    asyncio.run(_run())
+
+
+@app.command(name="send-rfps")
+def send_rfps_cmd(
+    restaurant_id: int = typer.Argument(..., help="Restaurant ID"),
+    limit: int = typer.Option(5, "--limit", help="Max distributors to email"),
+    min_matches: int = typer.Option(2, "--min-matches", help="Min matched ingredient count"),
+    deadline_days: int = typer.Option(5, "--deadline-days", help="Reply deadline window"),
+) -> None:
+    """Compose + send RFP emails for the top-N matched distributors."""
+
+    async def _run() -> None:
+        result = await send_rfps(
+            restaurant_id=restaurant_id,
+            distributor_limit=limit,
+            min_matches=min_matches,
+            deadline_days=deadline_days,
+        )
+        typer.echo(json.dumps(result.to_dict(), indent=2))
 
     asyncio.run(_run())
 

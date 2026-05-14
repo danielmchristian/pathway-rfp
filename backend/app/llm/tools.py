@@ -73,6 +73,60 @@ PICK_FDC_MATCH = {
     },
 }
 
+COMPOSE_RFP_EMAIL = {
+    "name": "compose_rfp_email",
+    "description": (
+        "Compose a wholesale RFP (Request for Pricing) email from a restaurant "
+        "to a specific food distributor. You are writing on behalf of the "
+        "restaurant's procurement team. The body must:\n\n"
+        "  * OPENING: open with EXACTLY this pattern — 'I'm reaching out from "
+        "the procurement team at {restaurant name} in {city, state}.' NEVER "
+        "write 'My name is' or any sentence that requires a personal first "
+        "name. Do not invent a person's name and do not leave a name "
+        "placeholder blank.\n"
+        "  * Briefly state the restaurant's positioning (one short clause).\n"
+        "  * List the SPECIFIC ingredients we want quoted — provided to you in "
+        "the user message. Use the ingredient's display name and weekly "
+        "volume estimate verbatim. The list is COMPLETE: do NOT mention any "
+        "ingredient outside it, even hypothetically. Do NOT hedge about items "
+        "that 'might fall outside' the distributor's specialty — the list has "
+        "already been filtered to ingredients this distributor can supply.\n"
+        "  * Explicitly label volume numbers as planning estimates based on a "
+        "covers-per-dish-per-week assumption — distributors should quote at "
+        "their standard wholesale tiers, not treat this as a firm purchase order.\n"
+        "  * If an item has a `conversion_note`, quote it verbatim in parentheses "
+        "or in a short footnote so the distributor knows our planning conversion.\n"
+        "  * Request: unit price, minimum order, delivery frequency, lead time, "
+        "and any organic / sourcing certifications relevant to the ingredients.\n"
+        "  * State the response deadline.\n"
+        "  * Close with: 'Best regards, / Procurement Team / {restaurant name}'. "
+        "Do NOT invent a personal signature.\n\n"
+        "Style: professional, concise, no marketing fluff. Plain text only — no "
+        "HTML or markdown formatting. Aim for ~200-350 words.\n\n"
+        "Return TWO fields: `subject_tail` (a short, descriptive subject WITHOUT "
+        "any [RFP-id] prefix — we add that ourselves) and `body` (the full "
+        "plain-text body)."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "subject_tail": {
+                "type": "string",
+                "description": (
+                    "Short descriptive subject line, no [RFP-id] prefix. "
+                    "e.g. 'Ingredient quote request — Sweetgreen Charlotte'."
+                ),
+            },
+            "body": {
+                "type": "string",
+                "description": "Full plain-text email body.",
+            },
+        },
+        "required": ["subject_tail", "body"],
+    },
+}
+
+
 EXTRACT_MENU_ITEMS = {
     "name": "extract_menu_items",
     "description": (

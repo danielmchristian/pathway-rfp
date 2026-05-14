@@ -13,6 +13,7 @@ dry-goods/spice shops.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -66,9 +67,45 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "Meals, Entrees, and Side Dishes": [],
 }
 
-# Fallback name-based tags for ingredients where the FDC category is missing
-# or too broad. Lowercase substring → extra tags.
-_NAME_HINT_TAGS: dict[str, list[str]] = {
+# Phase 5.1 — Composite/prepared-item guard. If an ingredient name contains
+# any of these tokens it's an in-house preparation (sauce, dressing, etc.).
+# Such items are returned as `unassigned` rather than routed to raw-ingredient
+# distributors, because Sweetgreen-style restaurants make these in-house and
+# routing them invents a supply relationship that doesn't exist.
+_COMPOSITE_TOKENS = (
+    "sauce",
+    "dressing",
+    "vinaigrette",
+    "marinade",
+    "glaze",
+    "aioli",
+    "syrup",
+    "spread",
+    "pesto",
+    "salsa",
+    "hummus",
+    "tahini",
+    "paste",
+    "mayo",
+    "mayonnaise",
+    "compound butter",
+)
+_COMPOSITE_RE = re.compile(
+    r"\b(" + "|".join(re.escape(t) for t in _COMPOSITE_TOKENS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def is_composite_name(name: str) -> bool:
+    """Is the ingredient a prepared/composite item? See _COMPOSITE_TOKENS."""
+    return bool(_COMPOSITE_RE.search(name or ""))
+
+
+# Phase 5.1 — Word-boundary name hints. Each entry tuple: (regex, tags).
+# The regex uses `\b` so "tea" inside "steak" doesn't fire. Multi-word
+# hints (e.g. "spring mix") are kept as exact phrase regexes.
+# Fallback for ingredients where the FDC category is missing or too broad.
+_NAME_HINT_TAGS_RAW: dict[str, list[str]] = {
     "kale": ["leafy_greens"],
     "romaine": ["leafy_greens"],
     "spinach": ["leafy_greens"],
@@ -76,6 +113,7 @@ _NAME_HINT_TAGS: dict[str, list[str]] = {
     "lettuce": ["leafy_greens"],
     "spring mix": ["leafy_greens"],
     "tomato": ["tomatoes"],
+    "tomatoes": ["tomatoes"],
     "cilantro": ["leafy_greens"],
     "basil": ["leafy_greens"],
     "parsley": ["leafy_greens"],
@@ -86,19 +124,39 @@ _NAME_HINT_TAGS: dict[str, list[str]] = {
     "chicken": ["protein_poultry", "protein_meat"],
     "steak": ["protein_meat"],
     "beef": ["protein_meat"],
+    "pork": ["protein_meat"],
     "tea": ["beverages"],
     "kombucha": ["beverages"],
+    "lemonade": ["beverages"],
+    "juice": ["beverages"],
 }
+
+# Compiled word-boundary regexes. Word-boundary is sufficient because all
+# hints are alphanumeric; the precompile keeps `specialty_tags_for` cheap.
+_NAME_HINT_PATTERNS: list[tuple[re.Pattern[str], list[str]]] = [
+    (re.compile(r"\b" + re.escape(h) + r"\b", re.IGNORECASE), tags)
+    for h, tags in _NAME_HINT_TAGS_RAW.items()
+]
 
 
 def specialty_tags_for(ingredient: Ingredient) -> set[str]:
-    """Resolve an ingredient's specialty tags from FDC category + name hints."""
+    """Resolve an ingredient's specialty tags from FDC category + name hints.
+
+    Phase 5.1 hardening:
+      * Composite/prepared items (sauces, dressings, …) return an empty set
+        regardless of name-hint matches. Sauces are made in-house; routing
+        them invents a supply relationship.
+      * Name hints use `\\b` word boundaries so "tea" inside "steak" does
+        not fire.
+    """
+    name = ingredient.name or ""
+    if is_composite_name(name):
+        return set()
     tags: set[str] = set()
     if ingredient.category and ingredient.category in _CATEGORY_MAP:
         tags.update(_CATEGORY_MAP[ingredient.category])
-    name_lower = (ingredient.name or "").lower()
-    for hint, hint_tags in _NAME_HINT_TAGS.items():
-        if hint in name_lower:
+    for pattern, hint_tags in _NAME_HINT_PATTERNS:
+        if pattern.search(name):
             tags.update(hint_tags)
     return tags
 

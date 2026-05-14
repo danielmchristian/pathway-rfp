@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from app import __version__
 from app.db import engine
 from app.logging import RequestContextMiddleware, configure_logging
-from app.routers import distributors, health, ingredients, restaurants, usage
+from app.routers import distributors, health, ingredients, restaurants, rfps, usage
 
 
 @asynccontextmanager
@@ -27,6 +27,9 @@ def create_app() -> FastAPI:
     app.include_router(ingredients.router)
     app.include_router(distributors.router)
     app.include_router(usage.router)
+    app.include_router(rfps.send_router)
+    app.include_router(rfps.view_router)
+    app.include_router(rfps.list_router)
     return app
 
 

@@ -115,5 +115,13 @@ class RfpEmail(Base, TimestampMixin, UpdatedAtMixin):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+    # Phase 5 — demo override: distributors keep `.example` placeholder
+    # emails in the DB; actual sends go to plus-addressed daniel+slug@…
+    # so a single Workspace inbox can route Phase 6 reply matching.
+    recipient_actual: Mapped[str | None] = mapped_column(String(320))
+    recipient_nominal: Mapped[str | None] = mapped_column(String(320))
+    # Resend's response `id` — Resend's internal handle, separate from the
+    # RFC-822 Message-ID we mint via the `headers` field on send.
+    resend_id: Mapped[str | None] = mapped_column(String(120), index=True)
 
     rfp_request: Mapped["RfpRequest"] = relationship(back_populates="emails")

@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     google_places_api_key: str = Field(default="", alias="GOOGLE_PLACES_API_KEY")
     resend_api_key: str = Field(default="", alias="RESEND_API_KEY")
     resend_from_email: str = Field(default="", alias="RESEND_FROM_EMAIL")
+    # Phase 5: outbound RFP sender + demo recipient override.
+    rfp_from_email: str = Field(
+        default="procurement@getserviceledger.com", alias="RFP_FROM_EMAIL"
+    )
+    rfp_demo_inbox: str = Field(
+        default="daniel@getserviceledger.com", alias="RFP_DEMO_INBOX"
+    )
+    # Planning estimate for ingredient volume aggregation across dishes.
+    # Labeled explicitly in every outbound email; distributors quote tier
+    # pricing rather than treating numbers as a firm PO.
+    covers_per_dish_per_week: int = Field(default=150, alias="COVERS_PER_DISH_PER_WEEK")
     imap_host: str = Field(default="", alias="IMAP_HOST")
     imap_user: str = Field(default="", alias="IMAP_USER")
     imap_password: str = Field(default="", alias="IMAP_PASSWORD")

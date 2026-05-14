@@ -32,7 +32,18 @@ async def _reset_state():
     yield
     get_bus().reset()
     async with SessionLocal() as session:
-        await session.execute(text("TRUNCATE TABLE llm_usage RESTART IDENTITY"))
+        # CASCADE needed — quotes table has an FK on rfp_emails.
+        # Phase 5.1: distributors added because rfp_emails has an FK on
+        # distributors; without truncating them too, leftover seed rows
+        # from one test bleed into the next test's matcher view.
+        await session.execute(
+            text(
+                "TRUNCATE TABLE llm_usage, rfp_emails, rfp_request_items, "
+                "rfp_requests, dish_ingredients, dishes, ingredient_prices, "
+                "restaurants, ingredients, distributors "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
         await session.commit()
     await engine.dispose()
 
@@ -44,7 +55,8 @@ async def db_session():
         yield session
         await session.execute(
             text(
-                "TRUNCATE TABLE llm_usage, dish_ingredients, dishes, ingredient_prices, "
+                "TRUNCATE TABLE llm_usage, rfp_emails, rfp_request_items, "
+                "rfp_requests, dish_ingredients, dishes, ingredient_prices, "
                 "restaurants, ingredients, distributors RESTART IDENTITY CASCADE"
             )
         )

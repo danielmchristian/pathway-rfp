@@ -1,0 +1,22 @@
+# Verification run — 1694 commodities, 1049 reports
+
+## Commodity matches for our target ingredients
+
+- **kale** → ['Greens, Kale', 'Kale']
+- **romaine** → ['Lettuce, Baby Red Romaine', 'Lettuce, Baby Red Romaine, Red', 'Lettuce, Romaine', 'Lettuce, Ruby Romaine']
+- **spinach** → ['Spinach']
+- **tomato** → ['Tomatoes', 'Tomatoes, Cherry', 'Tomatoes, Grape Type', 'Tomatoes, Plum Type']
+- **cucumber** → ['Cucumbers']
+- **onion** → ['Onions - Processed', 'Onions Green', 'Onions, Dry', 'Onions, Green', 'Onions, Processed']
+- **avocado** → ['Avocados']
+- **broccoli** → ['Broccoli', 'Broccoli Rabe (Rappini)', 'Broccoli/ Fresh Cut', 'Greens, Broccoli Rabe (Rappini)', 'Rapini/Broccoli Rabe']
+- **sweet potato** → ['Sweet Potatoes']
+- **carrot** → ['Carrots', 'Carrots/ Fresh Cut']
+- **cabbage** → ['Cabbage', 'Cabbage/ Fresh Cut', 'Chinese Cabbage', 'Greens, Cabbage Sprouts']
+- **bell pepper** → ['Peppers (Bell Type)', 'Peppers, Bell Type']
+- **cilantro** → ['Cilantro']
+- **lemon** → ['Gaultheria (Misc. Greens, Salal/ Lemon Leaf)', 'Lemon Grass', 'Lemon/ Lime', 'Lemons', 'Meyer Lemon']
+- **lime** → ['Lemon/ Lime', 'Limequat', 'Limes', 'Sweet Lime']
+
+## Atlanta-area reports
+

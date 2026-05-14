@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.models.restaurant import Restaurant
+from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -57,6 +58,19 @@ def parse(
 
     async def _run() -> None:
         result = await parse_menu(restaurant_id=restaurant_id, menu_path=menu_path)
+        typer.echo(json.dumps(result.to_dict()))
+
+    asyncio.run(_run())
+
+
+@app.command()
+def enrich(
+    restaurant_id: int = typer.Argument(..., help="Restaurant ID"),
+) -> None:
+    """Run FDC matching + AMS pricing for every ingredient on the restaurant's menu."""
+
+    async def _run() -> None:
+        result = await enrich_restaurant(restaurant_id=restaurant_id)
         typer.echo(json.dumps(result.to_dict()))
 
     asyncio.run(_run())

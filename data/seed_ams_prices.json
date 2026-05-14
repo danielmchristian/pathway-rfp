@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "description": "Synthetic seed data approximating Atlanta Terminal Market produce prices. Used by app/services/usda_ams.py as a deterministic fallback when the live AMS API is unreachable or no key is configured. Persisted rows use source='ams_seed_fallback' so they are honestly distinguishable from live observations (source='ams_market_news').",
+    "market_location": "Atlanta Terminal Market",
+    "report_id": 2278,
+    "generated_for_date_range": "2026-04-14 to 2026-05-13",
+    "price_units": "USD per package_unit; price_per_unit is midpoint normalized to unit_normalized"
+  },
+  "observations": [
+    {"commodity_slug": "Greens, Kale", "report_date": "2026-05-13", "package": "24 bunched cartons", "low_price": "18.00", "high_price": "20.00", "unit_normalized": "bunch", "price_per_unit_low": "0.75", "price_per_unit_high": "0.83"},
+    {"commodity_slug": "Greens, Kale", "report_date": "2026-05-08", "package": "24 bunched cartons", "low_price": "17.00", "high_price": "19.50", "unit_normalized": "bunch", "price_per_unit_low": "0.71", "price_per_unit_high": "0.81"},
+    {"commodity_slug": "Greens, Kale", "report_date": "2026-05-01", "package": "24 bunched cartons", "low_price": "16.50", "high_price": "18.50", "unit_normalized": "bunch", "price_per_unit_low": "0.69", "price_per_unit_high": "0.77"},
+    {"commodity_slug": "Greens, Kale", "report_date": "2026-04-22", "package": "24 bunched cartons", "low_price": "15.00", "high_price": "17.50", "unit_normalized": "bunch", "price_per_unit_low": "0.63", "price_per_unit_high": "0.73"},
+
+    {"commodity_slug": "Lettuce, Romaine", "report_date": "2026-05-13", "package": "24 count cartons", "low_price": "26.00", "high_price": "30.00", "unit_normalized": "head", "price_per_unit_low": "1.08", "price_per_unit_high": "1.25"},
+    {"commodity_slug": "Lettuce, Romaine", "report_date": "2026-05-08", "package": "24 count cartons", "low_price": "24.00", "high_price": "28.00", "unit_normalized": "head", "price_per_unit_low": "1.00", "price_per_unit_high": "1.17"},
+    {"commodity_slug": "Lettuce, Romaine", "report_date": "2026-05-01", "package": "24 count cartons", "low_price": "22.00", "high_price": "26.00", "unit_normalized": "head", "price_per_unit_low": "0.92", "price_per_unit_high": "1.08"},
+    {"commodity_slug": "Lettuce, Romaine", "report_date": "2026-04-22", "package": "24 count cartons", "low_price": "20.00", "high_price": "24.00", "unit_normalized": "head", "price_per_unit_low": "0.83", "price_per_unit_high": "1.00"},
+
+    {"commodity_slug": "Spinach", "report_date": "2026-05-13", "package": "4-3 lb film bags", "low_price": "22.00", "high_price": "26.00", "unit_normalized": "lb", "price_per_unit_low": "1.83", "price_per_unit_high": "2.17"},
+    {"commodity_slug": "Spinach", "report_date": "2026-05-08", "package": "4-3 lb film bags", "low_price": "23.00", "high_price": "27.00", "unit_normalized": "lb", "price_per_unit_low": "1.92", "price_per_unit_high": "2.25"},
+    {"commodity_slug": "Spinach", "report_date": "2026-04-30", "package": "4-3 lb film bags", "low_price": "24.00", "high_price": "28.00", "unit_normalized": "lb", "price_per_unit_low": "2.00", "price_per_unit_high": "2.33"},
+
+    {"commodity_slug": "Tomatoes", "report_date": "2026-05-13", "package": "25 lb cartons", "low_price": "16.00", "high_price": "20.00", "unit_normalized": "lb", "price_per_unit_low": "0.64", "price_per_unit_high": "0.80"},
+    {"commodity_slug": "Tomatoes", "report_date": "2026-05-08", "package": "25 lb cartons", "low_price": "15.00", "high_price": "19.00", "unit_normalized": "lb", "price_per_unit_low": "0.60", "price_per_unit_high": "0.76"},
+    {"commodity_slug": "Tomatoes", "report_date": "2026-05-01", "package": "25 lb cartons", "low_price": "14.00", "high_price": "18.00", "unit_normalized": "lb", "price_per_unit_low": "0.56", "price_per_unit_high": "0.72"},
+    {"commodity_slug": "Tomatoes", "report_date": "2026-04-22", "package": "25 lb cartons", "low_price": "13.50", "high_price": "17.00", "unit_normalized": "lb", "price_per_unit_low": "0.54", "price_per_unit_high": "0.68"},
+
+    {"commodity_slug": "Cucumbers", "report_date": "2026-05-13", "package": "1 1/9 bushel cartons", "low_price": "20.00", "high_price": "24.00", "unit_normalized": "lb", "price_per_unit_low": "0.67", "price_per_unit_high": "0.80"},
+    {"commodity_slug": "Cucumbers", "report_date": "2026-05-05", "package": "1 1/9 bushel cartons", "low_price": "22.00", "high_price": "26.00", "unit_normalized": "lb", "price_per_unit_low": "0.73", "price_per_unit_high": "0.87"},
+    {"commodity_slug": "Cucumbers", "report_date": "2026-04-25", "package": "1 1/9 bushel cartons", "low_price": "24.00", "high_price": "28.00", "unit_normalized": "lb", "price_per_unit_low": "0.80", "price_per_unit_high": "0.93"},
+
+    {"commodity_slug": "Onions, Dry", "report_date": "2026-05-13", "package": "50 lb sacks", "low_price": "22.00", "high_price": "26.00", "unit_normalized": "lb", "price_per_unit_low": "0.44", "price_per_unit_high": "0.52"},
+    {"commodity_slug": "Onions, Dry", "report_date": "2026-05-05", "package": "50 lb sacks", "low_price": "21.00", "high_price": "25.00", "unit_normalized": "lb", "price_per_unit_low": "0.42", "price_per_unit_high": "0.50"},
+    {"commodity_slug": "Onions, Dry", "report_date": "2026-04-22", "package": "50 lb sacks", "low_price": "20.00", "high_price": "24.00", "unit_normalized": "lb", "price_per_unit_low": "0.40", "price_per_unit_high": "0.48"},
+
+    {"commodity_slug": "Avocados", "report_date": "2026-05-13", "package": "48 count cartons", "low_price": "52.00", "high_price": "62.00", "unit_normalized": "ea", "price_per_unit_low": "1.08", "price_per_unit_high": "1.29"},
+    {"commodity_slug": "Avocados", "report_date": "2026-05-05", "package": "48 count cartons", "low_price": "48.00", "high_price": "58.00", "unit_normalized": "ea", "price_per_unit_low": "1.00", "price_per_unit_high": "1.21"},
+    {"commodity_slug": "Avocados", "report_date": "2026-04-25", "package": "48 count cartons", "low_price": "44.00", "high_price": "54.00", "unit_normalized": "ea", "price_per_unit_low": "0.92", "price_per_unit_high": "1.13"},
+    {"commodity_slug": "Avocados", "report_date": "2026-04-15", "package": "48 count cartons", "low_price": "40.00", "high_price": "50.00", "unit_normalized": "ea", "price_per_unit_low": "0.83", "price_per_unit_high": "1.04"},
+
+    {"commodity_slug": "Broccoli", "report_date": "2026-05-13", "package": "14 count cartons crowns", "low_price": "18.00", "high_price": "22.00", "unit_normalized": "head", "price_per_unit_low": "1.29", "price_per_unit_high": "1.57"},
+    {"commodity_slug": "Broccoli", "report_date": "2026-05-05", "package": "14 count cartons crowns", "low_price": "16.00", "high_price": "20.00", "unit_normalized": "head", "price_per_unit_low": "1.14", "price_per_unit_high": "1.43"},
+    {"commodity_slug": "Broccoli", "report_date": "2026-04-22", "package": "14 count cartons crowns", "low_price": "14.50", "high_price": "18.00", "unit_normalized": "head", "price_per_unit_low": "1.04", "price_per_unit_high": "1.29"},
+
+    {"commodity_slug": "Sweet Potatoes", "report_date": "2026-05-13", "package": "40 lb cartons", "low_price": "26.00", "high_price": "32.00", "unit_normalized": "lb", "price_per_unit_low": "0.65", "price_per_unit_high": "0.80"},
+    {"commodity_slug": "Sweet Potatoes", "report_date": "2026-05-05", "package": "40 lb cartons", "low_price": "24.00", "high_price": "30.00", "unit_normalized": "lb", "price_per_unit_low": "0.60", "price_per_unit_high": "0.75"},
+    {"commodity_slug": "Sweet Potatoes", "report_date": "2026-04-22", "package": "40 lb cartons", "low_price": "22.00", "high_price": "28.00", "unit_normalized": "lb", "price_per_unit_low": "0.55", "price_per_unit_high": "0.70"},
+
+    {"commodity_slug": "Carrots", "report_date": "2026-05-13", "package": "50 lb sacks", "low_price": "26.00", "high_price": "30.00", "unit_normalized": "lb", "price_per_unit_low": "0.52", "price_per_unit_high": "0.60"},
+    {"commodity_slug": "Carrots", "report_date": "2026-05-05", "package": "50 lb sacks", "low_price": "26.00", "high_price": "30.00", "unit_normalized": "lb", "price_per_unit_low": "0.52", "price_per_unit_high": "0.60"},
+    {"commodity_slug": "Carrots", "report_date": "2026-04-22", "package": "50 lb sacks", "low_price": "25.00", "high_price": "29.00", "unit_normalized": "lb", "price_per_unit_low": "0.50", "price_per_unit_high": "0.58"},
+
+    {"commodity_slug": "Cabbage", "report_date": "2026-05-13", "package": "50 lb cartons", "low_price": "16.00", "high_price": "20.00", "unit_normalized": "lb", "price_per_unit_low": "0.32", "price_per_unit_high": "0.40"},
+    {"commodity_slug": "Cabbage", "report_date": "2026-05-05", "package": "50 lb cartons", "low_price": "16.00", "high_price": "20.00", "unit_normalized": "lb", "price_per_unit_low": "0.32", "price_per_unit_high": "0.40"},
+    {"commodity_slug": "Cabbage", "report_date": "2026-04-22", "package": "50 lb cartons", "low_price": "15.00", "high_price": "19.00", "unit_normalized": "lb", "price_per_unit_low": "0.30", "price_per_unit_high": "0.38"},
+
+    {"commodity_slug": "Peppers (Bell Type)", "report_date": "2026-05-13", "package": "1 1/9 bushel cartons", "low_price": "26.00", "high_price": "32.00", "unit_normalized": "lb", "price_per_unit_low": "0.87", "price_per_unit_high": "1.07"},
+    {"commodity_slug": "Peppers (Bell Type)", "report_date": "2026-05-05", "package": "1 1/9 bushel cartons", "low_price": "24.00", "high_price": "30.00", "unit_normalized": "lb", "price_per_unit_low": "0.80", "price_per_unit_high": "1.00"},
+    {"commodity_slug": "Peppers (Bell Type)", "report_date": "2026-04-22", "package": "1 1/9 bushel cartons", "low_price": "22.00", "high_price": "28.00", "unit_normalized": "lb", "price_per_unit_low": "0.73", "price_per_unit_high": "0.93"},
+
+    {"commodity_slug": "Cilantro", "report_date": "2026-05-13", "package": "30 count cartons", "low_price": "17.00", "high_price": "20.00", "unit_normalized": "bunch", "price_per_unit_low": "0.57", "price_per_unit_high": "0.67"},
+    {"commodity_slug": "Cilantro", "report_date": "2026-05-05", "package": "30 count cartons", "low_price": "16.00", "high_price": "19.00", "unit_normalized": "bunch", "price_per_unit_low": "0.53", "price_per_unit_high": "0.63"},
+    {"commodity_slug": "Cilantro", "report_date": "2026-04-22", "package": "30 count cartons", "low_price": "14.00", "high_price": "17.00", "unit_normalized": "bunch", "price_per_unit_low": "0.47", "price_per_unit_high": "0.57"},
+
+    {"commodity_slug": "Lemons", "report_date": "2026-05-13", "package": "40 lb cartons", "low_price": "36.00", "high_price": "42.00", "unit_normalized": "lb", "price_per_unit_low": "0.90", "price_per_unit_high": "1.05"},
+    {"commodity_slug": "Lemons", "report_date": "2026-05-05", "package": "40 lb cartons", "low_price": "34.00", "high_price": "40.00", "unit_normalized": "lb", "price_per_unit_low": "0.85", "price_per_unit_high": "1.00"},
+    {"commodity_slug": "Lemons", "report_date": "2026-04-22", "package": "40 lb cartons", "low_price": "32.00", "high_price": "38.00", "unit_normalized": "lb", "price_per_unit_low": "0.80", "price_per_unit_high": "0.95"},
+
+    {"commodity_slug": "Limes", "report_date": "2026-05-13", "package": "40 lb cartons", "low_price": "32.00", "high_price": "40.00", "unit_normalized": "lb", "price_per_unit_low": "0.80", "price_per_unit_high": "1.00"},
+    {"commodity_slug": "Limes", "report_date": "2026-05-05", "package": "40 lb cartons", "low_price": "30.00", "high_price": "38.00", "unit_normalized": "lb", "price_per_unit_low": "0.75", "price_per_unit_high": "0.95"},
+    {"commodity_slug": "Limes", "report_date": "2026-04-22", "package": "40 lb cartons", "low_price": "28.00", "high_price": "36.00", "unit_normalized": "lb", "price_per_unit_low": "0.70", "price_per_unit_high": "0.90"}
+  ]
+}

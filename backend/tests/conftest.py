@@ -16,17 +16,24 @@ async def client() -> AsyncClient:
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_state():
-    """Reset event bus + dispose the global engine pool around every test.
+    """Reset event bus + truncate llm_usage + dispose the global engine pool around every test.
 
     pytest-asyncio runs each test in a fresh event loop. The module-level
     `engine` keeps asyncpg connections in its pool that are bound to the
     *previous* loop; reusing them after that loop is closed raises
     `RuntimeError: ... attached to a different loop`. Disposing on teardown
     forces a clean pool for the next test.
+
+    `llm_usage` is truncated because `traced_call` writes on its own session
+    (independent of any test fixture session), so without an autouse truncate
+    rows accumulate across tests and pollute downstream /usage assertions.
     """
     get_bus().reset()
     yield
     get_bus().reset()
+    async with SessionLocal() as session:
+        await session.execute(text("TRUNCATE TABLE llm_usage RESTART IDENTITY"))
+        await session.commit()
     await engine.dispose()
 
 

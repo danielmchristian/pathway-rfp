@@ -76,7 +76,7 @@ Every stage reads/writes the DB. DB is the source of truth. Stages are independe
 In-memory pub/sub. Subscribers receive events for a single `restaurant_id`. Events are **not** persisted — they exist to drive the streaming UI and observability and are reconstructible from DB state if needed.
 
 - Event names follow `"{stage}:{status}"`.
-- `stage` ∈ `menu_parse | usda_match | distributor_discovery | rfp_send | quote_parse | recommend`.
+- `stage` ∈ `menu_parse | ingredient_enrich | usda_match | ams_fetch | distributor_discovery | rfp_send | quote_parse | recommend`.
 - `status` ∈ `start | progress | complete | error`.
 - Each `restaurant_id` keeps a **ring buffer of the last 10 events**; new subscribers receive the buffered events first, then live events.
 - Service functions are decorated with `@stage("menu_parse")` which auto-emits `start` before and `complete` after, or `error` on raise.
@@ -86,6 +86,44 @@ In-memory pub/sub. Subscribers receive events for a single `restaurant_id`. Even
 - **Menu re-parse**: deletes the restaurant's dishes (cascade clears `dish_ingredients`), then re-inserts dishes + dish_ingredients in a single short DB transaction. Ingredients are upserted on `normalized_name` (`INSERT … ON CONFLICT DO UPDATE … RETURNING id`) and are **not** deleted, since they're shared across restaurants and downstream RFPs.
 - **LLM call boundary**: Claude is called *outside* the DB transaction (held by `traced_call` on its own session). The tool-use response shape is validated before opening the persistence transaction — failures raise before any DELETE.
 - **`llm_usage` durability**: `traced_call` writes its row on a fresh session, so usage is logged even when the calling transaction rolls back.
+
+## Pricing Data Source Decision
+
+USDA's `api.nal.usda.gov/fdc/v1` (**FoodData Central**, FDC) is a nutrition and food-identification API — it does **not** publish retail or wholesale prices. Wholesale produce pricing lives in a separate USDA product: the **Agricultural Marketing Service (AMS) Market News** API at `marsapi.ams.usda.gov`, which aggregates daily price reports from terminal markets across the US.
+
+Phase 3 uses both:
+
+- **FDC** for identity / canonical food matching. Hits `POST /foods/search` (auth via `?api_key=`), excludes the `Branded` dataType (snack products pollute ingredient matches), and uses up to the top 5 hits. The top hit is auto-accepted if `score ≥ 200` OR `top / second ≥ 1.5`; otherwise Claude is asked via the `pick_fdc_match` tool. Sets `ingredients.usda_fdc_id` and `ingredients.category`.
+- **AMS Market News** for prices. Auth is HTTP Basic with the API key as the username. The primary report is **Atlanta Terminal (`slug_id = 2278`)** — the closest USDA terminal market to Charlotte NC. Each ingredient maps via `commodity_map.py` to an AMS commodity slug (e.g. `kale → KALE`, `romaine → LETTUCE, ROMAINE`). Unmatched ingredients (proteins, oils, nuts, grains) receive one `pricing_unavailable=true` sentinel row — an honest gap, not a silent failure.
+
+**Seed fallback.** USDA AMS occasionally times out, and the API key is gated on a free registration that the demo cannot assume. `data/seed_ams_prices.json` contains synthetic but plausible 30-day price series for all 15 mapped commodities. Live API failures (or a missing `USDA_AMS_API_KEY`) automatically fall back to seed; persisted rows use `source='ams_seed_fallback'` so they're honestly distinguishable from `source='ams_market_news'`.
+
+**Commodity map seed (Phase 3, Atlanta Terminal):** kale, romaine, spinach, tomato, cucumber, onion (dry), avocado, broccoli, sweet potato, carrot, cabbage, bell pepper, cilantro, lemon, lime. The slug strings in `commodity_map.py` are placeholders verified by `scripts/verify_ams_map.py` against the live `/commodities` endpoint — re-run the script to keep them honest as USDA evolves the catalog.
+
+## Trend Computation
+
+Pure read-side compute over `ingredient_prices` rows (no persistence). For each ingredient:
+
+- `latest_price` — most recent `price_per_unit` within the trend window.
+- `avg_30d` — mean `price_per_unit` over the last 30 days.
+- `delta_pct_30d` — `(latest - first_in_window) / first_in_window * 100`.
+- `direction` — `up` if delta > +3%, `down` if delta < -3%, else `flat`. `unknown` when fewer than 2 in-window observations.
+
+The ±3% threshold filters routine market noise; tune via `pricing_trends.DIRECTION_THRESHOLD_PCT`.
+
+## Schema Delta — Migration 0002
+
+Adds five columns to `ingredient_prices`:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `pricing_unavailable` | `BOOLEAN NOT NULL DEFAULT false` | Sentinel row for ingredients with no AMS match. |
+| `ams_commodity_code` | `VARCHAR(120)` | AMS commodity slug. |
+| `market_location` | `VARCHAR(120)` | E.g. `Atlanta Terminal`. |
+| `price_per_unit` | `NUMERIC(12, 4)` | `$ / unit_normalized` for direct comparisons. |
+| `unit_normalized` | `VARCHAR(40)` | Canonical unit (`lb`, `bunch`, `head`, `ea`). |
+
+Plus a partial index `ix_ingredient_prices_observed` on `(ingredient_id, observed_at DESC) WHERE pricing_unavailable = false` to keep trend reads cheap as data grows.
 
 ## Database Schema (initial)
 

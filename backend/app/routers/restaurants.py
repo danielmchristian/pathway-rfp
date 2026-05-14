@@ -12,8 +12,10 @@ from app.db import get_session
 from app.models.dish import Dish
 from app.models.dish_ingredient import DishIngredient
 from app.models.ingredient import Ingredient
+from app.models.ingredient_price import IngredientPrice
 from app.models.restaurant import Restaurant
 from app.pipeline.events import get_bus
+from app.schemas.ingredients import EnrichResponse, IngredientSummaryRow
 from app.schemas.restaurants import (
     DishOut,
     IngredientOut,
@@ -22,7 +24,9 @@ from app.schemas.restaurants import (
     RestaurantCreate,
     RestaurantOut,
 )
+from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
+from app.services.pricing_trends import PriceObservation, compute_trend
 
 router = APIRouter(prefix="/api/restaurants", tags=["restaurants"])
 
@@ -141,3 +145,95 @@ async def restaurant_events(restaurant_id: int, request: Request) -> EventSource
 
 def _dish_ingredients_helper(d: Dish) -> list[DishIngredient]:
     return list(d.ingredients)
+
+
+@router.post("/{restaurant_id}/enrich", response_model=EnrichResponse)
+async def enrich_endpoint(restaurant_id: int, session: SessionDep) -> EnrichResponse:
+    if await session.get(Restaurant, restaurant_id) is None:
+        raise HTTPException(status_code=404, detail=f"restaurant {restaurant_id} not found")
+    try:
+        result = await enrich_restaurant(restaurant_id=restaurant_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return EnrichResponse(**result.to_dict())
+
+
+@router.get(
+    "/{restaurant_id}/ingredients/summary",
+    response_model=list[IngredientSummaryRow],
+)
+async def ingredients_summary(
+    restaurant_id: int, session: SessionDep
+) -> list[IngredientSummaryRow]:
+    if await session.get(Restaurant, restaurant_id) is None:
+        raise HTTPException(status_code=404, detail=f"restaurant {restaurant_id} not found")
+
+    # Restaurant → distinct ingredients referenced by its dishes.
+    stmt = (
+        select(Ingredient)
+        .join(DishIngredient, DishIngredient.ingredient_id == Ingredient.id)
+        .join(Dish, Dish.id == DishIngredient.dish_id)
+        .where(Dish.restaurant_id == restaurant_id)
+        .distinct()
+        .order_by(Ingredient.name)
+    )
+    ingredients = (await session.execute(stmt)).scalars().all()
+    if not ingredients:
+        return []
+
+    ids = [i.id for i in ingredients]
+    price_rows = (
+        (
+            await session.execute(
+                select(IngredientPrice)
+                .where(IngredientPrice.ingredient_id.in_(ids))
+                .order_by(
+                    IngredientPrice.ingredient_id,
+                    IngredientPrice.observed_at.desc().nulls_last(),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_ingredient: dict[int, list[IngredientPrice]] = {}
+    for row in price_rows:
+        by_ingredient.setdefault(row.ingredient_id, []).append(row)
+
+    out: list[IngredientSummaryRow] = []
+    for ing in ingredients:
+        rows = by_ingredient.get(ing.id, [])
+        pricing_unavailable = bool(rows) and all(r.pricing_unavailable for r in rows)
+        if not rows and ing.usda_fdc_id is None:
+            # No price rows and unmatched — likely never enriched.
+            pricing_unavailable = False
+        trend = compute_trend(
+            [
+                PriceObservation(
+                    observed_at=r.observed_at,
+                    price_per_unit=r.price_per_unit,
+                    unit_normalized=r.unit_normalized,
+                )
+                for r in rows
+                if r.observed_at is not None and not r.pricing_unavailable
+            ]
+        )
+        priced = [r for r in rows if not r.pricing_unavailable]
+        latest = priced[0] if priced else None
+        out.append(
+            IngredientSummaryRow(
+                ingredient_id=ing.id,
+                ingredient_name=ing.name,
+                normalized_name=ing.normalized_name,
+                fdc_id=ing.usda_fdc_id,
+                fdc_category=ing.category,
+                latest_price_per_unit=latest.price_per_unit if latest else None,
+                unit_normalized=latest.unit_normalized if latest else None,
+                delta_pct_30d=trend.delta_pct_30d,
+                direction=trend.direction,
+                observations_count=trend.observations_count,
+                pricing_unavailable=pricing_unavailable,
+                source=latest.source if latest else None,
+            )
+        )
+    return out

@@ -73,6 +73,118 @@ PICK_FDC_MATCH = {
     },
 }
 
+PARSE_QUOTE = {
+    "name": "parse_quote",
+    "description": (
+        "Extract structured quote data from a distributor's reply to a "
+        "wholesale RFP email. You are given the reply body plus the list of "
+        "ingredients we asked this distributor to quote.\n\n"
+        "For each ingredient MENTIONED IN THE REPLY, produce one quotes[] "
+        "entry. **Critical rule**: if an asked-for ingredient is NOT "
+        "mentioned anywhere in the reply body, do NOT produce a quotes[] "
+        "entry for it — its absence will be inferred separately. Only "
+        "emit a quotes[] entry when the distributor's reply explicitly "
+        "addresses that ingredient (even to decline pricing on it). If "
+        "the distributor quoted an ingredient that wasn't in our ask "
+        "list, still include it (we'll flag it on our side) — DO NOT "
+        "skip an ingredient the distributor explicitly addressed.\n\n"
+        "Fields per quote:\n"
+        "  - `ingredient_name`: the item the quote covers (use the name the "
+        "distributor used; we'll fuzzy-match to our list).\n"
+        "  - `unit_price`: number, in USD per the quoted unit. Null if the "
+        "distributor did not state a price.\n"
+        "  - `unit`: the unit the price refers to (e.g. 'lb', 'case', 'each', "
+        "'bunch', 'gallon'). Null if not stated.\n"
+        "  - `min_order_qty`: minimum order quantity in the quoted unit; null "
+        "if not stated.\n"
+        "  - `delivery_days`: integer days from order to delivery; null if "
+        "not stated.\n"
+        "  - `terms`: short string of payment / delivery terms (e.g. 'net 30', "
+        "'COD'); null if not stated.\n"
+        "  - `missing_fields`: list of which of the four fields above were "
+        "absent from the quote — values must be exactly: 'unit_price', "
+        "'unit', 'min_order_qty', 'delivery_days', or 'terms'.\n"
+        "  - `parse_confidence`: 0.0–1.0 — how clean was this single item?\n\n"
+        "Top-level fields:\n"
+        "  - `quotes`: the array above.\n"
+        "  - `overall_parse_confidence`: 0.0–1.0 — how clean was the reply?\n"
+        "  - `off_topic`: true if the reply is NOT actually a quote (auto-"
+        "responder, OOO, unrelated message, marketing). When true, `quotes` "
+        "should be empty.\n"
+        "  - `note`: optional one-sentence operator note (e.g. 'reply is a "
+        "vacation auto-responder', 'distributor declined to quote on items "
+        "X, Y because they are out of season')."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "quotes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "ingredient_name": {"type": "string"},
+                        "unit_price": {"type": ["number", "null"]},
+                        "unit": {"type": ["string", "null"]},
+                        "min_order_qty": {"type": ["number", "null"]},
+                        "delivery_days": {"type": ["integer", "null"]},
+                        "terms": {"type": ["string", "null"]},
+                        "missing_fields": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "parse_confidence": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1,
+                        },
+                    },
+                    "required": [
+                        "ingredient_name",
+                        "missing_fields",
+                        "parse_confidence",
+                    ],
+                },
+            },
+            "overall_parse_confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+            },
+            "off_topic": {"type": "boolean"},
+            "note": {"type": ["string", "null"]},
+        },
+        "required": ["quotes", "overall_parse_confidence", "off_topic"],
+    },
+}
+
+
+COMPOSE_FOLLOWUP_EMAIL = {
+    "name": "compose_followup_email",
+    "description": (
+        "Compose a SINGLE follow-up email to a distributor whose RFP reply "
+        "was incomplete. You are given the original ask, the distributor's "
+        "reply body, and the list of fields/items they still owe us. "
+        "Compose a short, polite, plain-text email asking specifically for "
+        "the missing fields — do NOT re-ask for fields they already provided. "
+        "Keep it under 150 words.\n\n"
+        "OPENING (use this exact pattern): 'Thanks for your reply — to "
+        "finalize our planning, could you confirm the following:'. NEVER "
+        "write 'My name is'. Close with 'Best regards, / Procurement Team / "
+        "{restaurant name}'.\n\n"
+        "Return: `subject_tail` (no [RFP-id] prefix — we add it) and `body`."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "subject_tail": {"type": "string"},
+            "body": {"type": "string"},
+        },
+        "required": ["subject_tail", "body"],
+    },
+}
+
+
 COMPOSE_RFP_EMAIL = {
     "name": "compose_rfp_email",
     "description": (

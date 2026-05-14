@@ -87,14 +87,17 @@ class RfpEmail(Base, TimestampMixin, UpdatedAtMixin):
     __tablename__ = "rfp_emails"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    rfp_request_id: Mapped[int] = mapped_column(
+    # Phase 6 — nullable for unattributed inbound replies (F2). Outbound
+    # rows always have both set; inbound rows may have either or both
+    # NULL depending on which attribution tier succeeded.
+    rfp_request_id: Mapped[int | None] = mapped_column(
         ForeignKey("rfp_requests.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
-    distributor_id: Mapped[int] = mapped_column(
+    distributor_id: Mapped[int | None] = mapped_column(
         ForeignKey("distributors.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     direction: Mapped[EmailDirection] = mapped_column(
@@ -123,5 +126,16 @@ class RfpEmail(Base, TimestampMixin, UpdatedAtMixin):
     # Resend's response `id` — Resend's internal handle, separate from the
     # RFC-822 Message-ID we mint via the `headers` field on send.
     resend_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    # Phase 6 — follow-up flag. Partial unique index in migration 0004
+    # enforces "max one follow-up per (rfp_request, distributor)" at the
+    # DB level so the cap holds even across concurrent inserts.
+    is_followup: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # Which 3-tier attribution strategy claimed this inbound reply.
+    # One of: 'in_reply_to', 'plus_tag', 'subject_prefix', 'unattributed'.
+    # NULL on outbound rows.
+    attribution_method: Mapped[str | None] = mapped_column(String(40))
+    # Parse outcome for inbound replies — distinct from delivery status.
+    # 'unparsed' | 'parsed' | 'parse_failed'. NULL on outbound.
+    parse_status: Mapped[str | None] = mapped_column(String(40))
 
     rfp_request: Mapped["RfpRequest"] = relationship(back_populates="emails")

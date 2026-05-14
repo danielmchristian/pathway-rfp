@@ -480,6 +480,126 @@ Excluded (below `min_matches=2`): Tidewater Seafood (1 match), Charlotte Special
 
 Sample wholesale-unit conversions from the live `rfp_request_id=2` bodies: `Basil — ~12 bunches/week (~600 tbsp/week ≈ 12 bunches at planning density; please confirm your standard bunch size)`, `Shredded kale — ~56.2 lb/week (converted from cups at ~1 oz/cup chopped)`, `Kombucha — ~28.1 gallon/week (converted from fl oz; 128 fl oz/gallon)`. Lemon/lime juice are reported as `tsp/week` with the explicit "no wholesale rule applies — please quote in your standard unit" flag (the sanity fallback firing as designed; we don't have a teaspoon-volume rule because the planning density depends on whether it's freshly squeezed, bottled, or concentrate).
 
+## Phase 6 — Inbox Monitor + Quote Parser + Follow-up Agent + Recommender
+
+End-to-end loop closure: poll Gmail via IMAP → attribute inbound replies → parse with Claude → trigger at-most-one follow-up per distributor → compute a null-safe recommendation with explicit basket-coverage honesty.
+
+### Failure-mode invariants (acceptance tests)
+
+| # | Invariant | Enforcement |
+|---|---|---|
+| **F1** | Same UID processed twice persists exactly one `rfp_emails` row. | `UNIQUE(mailbox, uid_validity, uid)` on `imap_seen_uids` + same-transaction insert with `rfp_emails` (Amendment B). |
+| **F2** | A reply with no Message-ID match, no plus-tag, no `[RFP-{id}]` subject is persisted with `attribution_method='unattributed'`, NOT dropped, NOT raised. | `attribute_reply` always returns an `AttributionResult`; the fallback tier returns method=`unattributed` with NULL `rfp_request_id`/`distributor_id`. |
+| **F3** | For any `(rfp_request_id, distributor_id)`, at most one `rfp_emails WHERE is_followup=true`. | **DB-enforced** via `CREATE UNIQUE INDEX ix_one_followup_per_dist_rfp ... WHERE is_followup=true` (migration 0004, Amendment A). The follow-up agent's IntegrityError handler logs `cap_reached`. |
+| **F4** | A follow-up send must not, in the same call stack, trigger another send. | Pipeline calls `maybe_send_followup` once per qualifying inbound; the agent itself does no recursion. Test asserts Resend POST count == 1 + Claude compose count == 1. |
+| **F5** | A quote with `unit_price=NULL`, `delivery_days=NULL`, or `min_order_qty=NULL` must not crash the recommender and must not score the NULL as zero. | `_score_cost` excludes null-price ingredients from the basket sum AND flags `incomplete_comparison=true`. `_score_delivery` returns `0.0` (asymmetric — see below). `_score_moq` returns `0.5` (neutral). |
+| **F6** | Quotes on `quantity=NULL` (TBD) items persist with the quoted unit price; the recommender excludes from basket sum and flags incomplete. | `_wholesale_quantity_for` returns `None` (not zero) when item.quantity is NULL; `_score_cost` treats this the same as null-price. |
+| **F7** | One bad reply doesn't poison the batch. | `quote_pipeline.poll_and_process` wraps each `parse_quote_email` call in `try/except` and marks `parse_status='parse_failed'` on the offending row; the loop continues. |
+| **F8** | IMAP connection / auth / network failure is non-fatal. | `poll_inbox` catches `imaplib.IMAP4.error`, `OSError`, `ssl.SSLError`, `RuntimeError`; returns `InboxPollResult(error=...)`. API endpoint returns 200 with `poll_error` set. |
+
+**Mutation-tested.** For each F-invariant the offending guard was temporarily broken, the corresponding test was re-run, and the failure mode was confirmed before reverting. The tests are real assertions, not theatre.
+
+### IMAP approach
+
+Stdlib `imaplib.IMAP4_SSL` + `asyncio.to_thread` wrapper. No new dependency. Body extraction uses `email.message_from_bytes` (RFC-2822 canonical) and prefers `text/plain` parts, falling back to `bs4`-stripped HTML when only HTML is available. Headers like `Date`, `Message-ID`, `In-Reply-To`, `References` are read via `email.utils` helpers (no hand-rolled regex).
+
+**Own-send filter.** Phase 5's demo recipient override (`daniel+slug@…`) means our outbound RFPs land in the same Workspace mailbox we poll. The monitor skips messages where `From == settings.rfp_from_email` and records the UID as seen so we don't re-fetch.
+
+### Attribution (3 tiers, priority order)
+
+1. **`In-Reply-To` / `References` headers** → exact match on `rfp_emails.message_id` where `direction='out'`. Primary signal. Sets `rfp_request_id`, `distributor_id`, `matched_rfp_email_id`.
+2. **Plus-tag in `To` / `Delivered-To`** → derive distributor slug via `_normalize_slug`; match against `Distributor.name` slug; resolve to that distributor's latest open RFP.
+3. **`[RFP-{id}]` subject prefix** → match `rfp_request_id` only; `distributor_id=NULL` (we know which RFP but not whom). Tier-3 attribution legitimately attributes to RFP only — the quote parser skips quote persistence when `distributor_id` is NULL because the comparison key needs both.
+
+**Fallback:** `attribution_method='unattributed'` with both FKs NULL. Logged, not dropped, never crashes (F2).
+
+### Quote parser (Claude `parse_quote` tool, stage='quote_parse')
+
+Receives the inbound body + the per-distributor scoped ingredient list (NOT the union — scoping uses `specialty_tags_for(ingredient) & distributor.specialties`). Returns per-ingredient `{unit_price, unit, min_order_qty, delivery_days, terms, missing_fields[], parse_confidence}` plus `off_topic` and an optional `note`. Auto-responders / OOO / marketing replies set `off_topic=true` and return `quotes=[]`.
+
+`_add_missing_from_nulls` augments `missing_fields` with any field Claude returned as NULL but forgot to flag — defensive against the parser under-reporting gaps.
+
+### Follow-up agent
+
+Triggered by the pipeline when a parsed reply has any non-empty `missing_fields`. Composes a scoped follow-up via the `compose_followup_email` Claude tool — asks only for fields the distributor omitted; never re-asks for fields already provided.
+
+**Threading.** Follow-ups mint their own Message-ID (`<rfp-{req}-{dist}-fu1-{hex}@domain>` — `fu1` marker makes them greppable) and set `In-Reply-To` = the inbound reply's message_id so Gmail threads them under the distributor's response. Sent via Resend; persisted with `is_followup=true`.
+
+**Termination.** A pre-flight `SELECT` against the existing follow-up cap saves a Claude+Resend round trip when the cap is already reached. The DB partial unique index is the load-bearing invariant — if the pre-flight is bypassed (concurrent inserts or a code-path change), the index still catches the second attempt and the agent logs `followup.skipped.cap_reached` from the IntegrityError handler. A still-incomplete reply to a follow-up does NOT trigger a second follow-up.
+
+### Recommendation (`recommender.compute_for_rfp`)
+
+**Trigger:** when all expected distributors have replied OR `rfp_request.deadline < now()` OR `force=True` (CLI / API explicit override).
+
+**Scoring weights:**
+
+```
+score = 0.50 × cost_score
+      + 0.20 × delivery_score
+      + 0.15 × moq_fit_score
+      + 0.15 × completeness_score
+```
+
+Each component normalized to `[0, 1]` (higher = better) before weighting. Persisted to `recommendations` table with `score`, `rationale`, `incomplete_comparison`, `coverage_pct`, `component_breakdown` (JSONB).
+
+**Asymmetric null-safety (intentional — defended in the rationale text).**
+
+- **`unit_price=NULL` OR `wholesale_quantity=NULL`** → that ingredient is **EXCLUDED** from the basket sum, AND the basket is flagged `incomplete_comparison=true`. *Reason:* we can't compute basket cost without both; silently scoring as zero would make the distributor look artificially cheap. Treating NULL as "absent data" is honest.
+- **`delivery_days=NULL`** → scored **0.0** (WORST-CASE), NOT excluded, NOT median-imputed. *Reason:* a distributor refusing to commit to delivery is a real negative signal, not absent data. Distinct from price NULL on purpose: price NULL means "working on it"; delivery NULL means "won't commit". The rationale text repeats this verbatim so the writeup can defend the choice.
+- **`min_order_qty=NULL`** → scored **0.5** (neutral). *Reason:* genuinely ambiguous — many distributors don't enforce one.
+
+**Cross-distributor basket coverage.** `coverage_pct = (quoted_ingredient_count / requested_ingredient_count) × 100` is surfaced because distributors quote different subsets — the recommendation isn't always apples-to-apples. The rationale text explicitly calls this out: *"Carolina Fresh scored 0.96 on a basket of 8/21 requested items (coverage 38%); this score is not strictly apples-to-apples vs other distributors."*
+
+If no distributor has a non-zero `cost_score` AND non-empty quotes, recommender persists `score=0.0` with rationale "no priced quotes received before deadline" — does not crash, does not pick arbitrarily.
+
+### Schema delta — migration `0004_phase6_inbox`
+
+| Table | Column | Type | Purpose |
+|---|---|---|---|
+| `rfp_emails` | `is_followup` | `BOOLEAN NOT NULL DEFAULT false` | F3 |
+| `rfp_emails` | `attribution_method` | `VARCHAR(40)` NULL | Phase 6 audit |
+| `rfp_emails` | `parse_status` | `VARCHAR(40)` NULL | F7 (`unparsed`/`parsed`/`parse_failed`) |
+| `rfp_emails` | `rfp_request_id`, `distributor_id` | RELAXED to NULLABLE | F2 (unattributed rows) |
+| `imap_seen_uids` (new) | id, mailbox, uid_validity, uid, seen_at, rfp_email_id, UNIQUE(mailbox, uid_validity, uid) | — | F1 idempotency |
+| `recommendations` | `incomplete_comparison` | `BOOLEAN NOT NULL DEFAULT false` | basket-honesty flag |
+| `recommendations` | `coverage_pct` | `NUMERIC(5,2)` NULL | per-distributor coverage |
+| `recommendations` | `component_breakdown` | `JSONB` NULL | full ranked list + per-component scores |
+| **partial UNIQUE INDEX** | `ix_one_followup_per_dist_rfp` on `rfp_emails (rfp_request_id, distributor_id) WHERE is_followup=true` | — | Amendment A — F3 DB-enforced |
+
+### API surface added in Phase 6
+
+```
+POST /api/rfp/{id}/poll_inbox      # one poll cycle (force_recommendation optional)
+POST /api/rfp/{id}/finalize        # force-compute recommendation regardless of deadline
+GET  /api/rfp/{id}/recommendation  # current recommendation (computes if conditions are met)
+GET  /api/rfp/{id}/quotes          # quotes grouped by distributor
+GET  /api/rfp/{id}/comparison      # distributors × ingredients matrix
+```
+
+CLI:
+
+```
+python -m app.cli poll-inbox <rfp_request_id> [--force]
+python -m app.cli finalize <rfp_request_id>
+```
+
+SSE substages: `inbox_poll:start|complete`, `quote_parse:start|complete|error`, `followup:start|complete`, `recommendation:start|complete`. The umbrella `quote_collection` stage wraps everything.
+
+### Phase 6 verified run (rfp_request_id=1, 2026-05-14)
+
+After Phase 5.1's `<rfp-2-*>` send, the test suite truncates DB state between every test (necessary for isolation), so a fresh demo run regenerated `rfp_request_id=1` with the same 4 distributors. Four simulated distributor replies were sent via Gmail SMTP using daniel's app password (one-off harness `/tmp/simulate_replies.py`, since the user's manual replies referenced the now-vanished `rfp-2-*` Message-IDs):
+
+| Distributor | Reply type | Parse result |
+|---|---|---|
+| Carolina Fresh Produce Co. | Complete quote, 8 produce items | 8 quotes, 0 missing fields |
+| Foothills Organic Distribution | Prices only, no delivery_days/terms | 7 quotes, 14 missing fields → **follow-up sent** |
+| Queen City Meats | Chicken priced, steak null-price, bacon declined | 2 quotes, 1 with null price |
+| Three Rivers Beverage Co. | OOO auto-responder | `off_topic=true`, 0 quotes |
+
+**Recommendation** (force=true): **Carolina Fresh Produce Co. — score 0.96** on a basket of 8/21 requested items (coverage 38%). Rationale calls out the coverage gap explicitly. Foothills second at 0.74 (penalized by delivery_days=NULL across all 7 items — the asymmetric rule firing in production). Queen City third at 0.19 (low coverage + null-price exclusion + delivery NULL).
+
+**F1 verified live:** second `poll-inbox` invocation returned `inbound_count=0`, `duplicate_uids_skipped=24` — all previously fetched UIDs blocked at the unique constraint.
+
 ## Restaurant Choice
 
 **Sweetgreen — Park Road Shopping Center, 4329 Park Rd, Charlotte, NC 28209.** Public HTML menu snapshot saved to `data/menus/sweetgreen.html`. Chosen because the menu is ingredient-forward (each dish lists its components), which exercises the parser's "high-confidence ingredient extraction" path well.

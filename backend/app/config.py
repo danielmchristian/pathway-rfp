@@ -40,9 +40,14 @@ class Settings(BaseSettings):
     # Labeled explicitly in every outbound email; distributors quote tier
     # pricing rather than treating numbers as a firm PO.
     covers_per_dish_per_week: int = Field(default=150, alias="COVERS_PER_DISH_PER_WEEK")
-    imap_host: str = Field(default="", alias="IMAP_HOST")
+    imap_host: str = Field(default="imap.gmail.com", alias="IMAP_HOST")
+    imap_port: int = Field(default=993, alias="IMAP_PORT")
     imap_user: str = Field(default="", alias="IMAP_USER")
     imap_password: str = Field(default="", alias="IMAP_PASSWORD")
+    imap_mailbox: str = Field(default="INBOX", alias="IMAP_MAILBOX")
+    # Phase 6 — recommendation kicks in after this window even with
+    # missing replies. Matches Phase 5's deadline_days default (5d * 24).
+    quote_deadline_hours: int = Field(default=120, alias="QUOTE_DEADLINE_HOURS")
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     env: Literal["dev", "prod", "test"] = Field(default="dev", alias="ENV")

@@ -15,6 +15,8 @@ from app.models.restaurant import Restaurant
 from app.services.distributor_discovery import discover_distributors
 from app.services.ingredient_enrichment import enrich_restaurant
 from app.services.menu_parser import parse_menu
+from app.services.quote_pipeline import poll_and_process
+from app.services.recommender import compute_for_rfp
 from app.services.rfp_pipeline import send_rfps
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -111,6 +113,49 @@ def send_rfps_cmd(
             deadline_days=deadline_days,
         )
         typer.echo(json.dumps(result.to_dict(), indent=2))
+
+    asyncio.run(_run())
+
+
+@app.command(name="poll-inbox")
+def poll_inbox_cmd(
+    rfp_request_id: int = typer.Argument(..., help="RFP request to poll for"),
+    force: bool = typer.Option(
+        False, "--force", help="Compute recommendation regardless of deadline / replies"
+    ),
+) -> None:
+    """Run one IMAP poll cycle for an RFP; parse quotes, send follow-ups,
+    optionally finalize."""
+
+    async def _run() -> None:
+        from app.db import SessionLocal
+        from app.models.rfp import RfpRequest
+
+        async with SessionLocal() as session:
+            rfp = await session.get(RfpRequest, rfp_request_id)
+            if rfp is None:
+                typer.echo(json.dumps({"error": f"rfp_request {rfp_request_id} not found"}))
+                raise typer.Exit(1)
+            restaurant_id = rfp.restaurant_id
+        result = await poll_and_process(
+            restaurant_id=restaurant_id,
+            rfp_request_id=rfp_request_id,
+            force_recommendation=force,
+        )
+        typer.echo(json.dumps(result.to_dict(), indent=2, default=str))
+
+    asyncio.run(_run())
+
+
+@app.command(name="finalize")
+def finalize_cmd(
+    rfp_request_id: int = typer.Argument(..., help="RFP request to finalize"),
+) -> None:
+    """Force-compute the recommendation for an RFP regardless of deadline."""
+
+    async def _run() -> None:
+        rec = await compute_for_rfp(rfp_request_id, force=True)
+        typer.echo(json.dumps(rec.to_dict(), indent=2, default=str))
 
     asyncio.run(_run())
 

@@ -2,6 +2,7 @@ from app.models.base import Base
 from app.models.dish import Dish
 from app.models.dish_ingredient import DishIngredient
 from app.models.distributor import Distributor
+from app.models.imap_seen_uid import ImapSeenUid
 from app.models.ingredient import Ingredient
 from app.models.ingredient_price import IngredientPrice
 from app.models.llm_usage import LlmUsage
@@ -30,6 +31,7 @@ __all__ = [
     "RfpEmail",
     "Quote",
     "Recommendation",
+    "ImapSeenUid",
     "LlmUsage",
     "RfpRequestStatus",
     "EmailDirection",

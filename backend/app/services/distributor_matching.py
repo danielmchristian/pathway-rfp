@@ -59,7 +59,12 @@ _CATEGORY_MAP: dict[str, list[str]] = {
     "Spices and Herbs": ["produce", "leafy_greens", "dry_goods"],
     "Baked Products": ["bakery", "dry_goods"],
     "Beverages": ["beverages"],
-    "Soups, Sauces, and Gravies": ["dry_goods", "specialty_ethnic"],
+    # Phase 5.2 — sauces/soups/gravies are prepared composites, not raw
+    # ingredients we'd procure from a wholesale distributor. The category
+    # map should only route raw goods; auto-routing this category sent
+    # every sauce to 4 distributors. Items here now fall to unassigned
+    # (honest gap) instead of being silently distributed.
+    "Soups, Sauces, and Gravies": [],
     "Sweets": ["dry_goods"],
     "Snacks": ["dry_goods"],
     "American Indian/Alaska Native Foods": [],
@@ -73,6 +78,7 @@ _CATEGORY_MAP: dict[str, list[str]] = {
 # distributors, because Sweetgreen-style restaurants make these in-house and
 # routing them invents a supply relationship that doesn't exist.
 _COMPOSITE_TOKENS = (
+    # Phase 5.1 — caught the manual-run composites
     "sauce",
     "dressing",
     "vinaigrette",
@@ -89,6 +95,25 @@ _COMPOSITE_TOKENS = (
     "mayo",
     "mayonnaise",
     "compound butter",
+    # Phase 5.2 — caught the run-demo composites that slipped v5.1
+    # because their names don't contain any of the above tokens
+    # (ranch, slaw, crunch, crumble, etc. are all in-house preparations).
+    "ranch",
+    "slaw",
+    "crunch",
+    "crumble",
+    "crisps",
+    "dip",
+    "chutney",
+    "relish",
+    "jam",
+    "marmalade",
+    "kimchi",
+    "seasoning",
+    "rub",
+    "caramel",
+    "frosting",
+    "icing",
 )
 _COMPOSITE_RE = re.compile(
     r"\b(" + "|".join(re.escape(t) for t in _COMPOSITE_TOKENS) + r")\b",

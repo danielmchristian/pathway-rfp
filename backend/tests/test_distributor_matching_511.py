@@ -23,6 +23,30 @@ def test_composite_guard_drops_sauces() -> None:
     assert specialty_tags_for(_ing("Spicy Cashew Aioli")) == set()
 
 
+def test_composite_guard_drops_phase52_additions() -> None:
+    """Phase 5.2 — names that don't end in `sauce`/`dressing` but are still
+    in-house preparations (caught by run-demo's actual menu)."""
+    assert specialty_tags_for(_ing("Charred Jalapeño Ranch")) == set()
+    assert specialty_tags_for(_ing("Green Goddess Ranch")) == set()
+    assert specialty_tags_for(_ing("Sesame Crunch")) == set()
+    assert specialty_tags_for(_ing("Feta Crumble")) == set()
+    assert specialty_tags_for(_ing("Napa Cabbage Slaw")) == set()
+    assert specialty_tags_for(_ing("Parmesan Crisps")) == set()
+    assert specialty_tags_for(_ing("Apple Kimchi")) == set()
+    assert specialty_tags_for(_ing("Honey Date Caramel")) == set()
+    assert specialty_tags_for(_ing("Nori Sesame Seasoning")) == set()
+
+
+def test_soups_sauces_category_no_longer_auto_routes() -> None:
+    """Phase 5.2 — `Soups, Sauces, and Gravies` is a prepared-foods FDC
+    bucket. We don't procure those from raw-ingredient distributors;
+    the category map should not route them anywhere."""
+    # Even an ingredient whose NAME doesn't trip the composite guard
+    # should produce no tags via the category map.
+    ing = _ing("Some Brothy Thing", category="Soups, Sauces, and Gravies")
+    assert specialty_tags_for(ing) == set()
+
+
 def test_composite_guard_preserves_raw_ingredients() -> None:
     # Raw produce/proteins/herbs still get their tags.
     assert "leafy_greens" in specialty_tags_for(_ing("Shredded Kale"))
